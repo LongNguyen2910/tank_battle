@@ -1,0 +1,3 @@
+- ui Health bar, Inventory: ElvGames (https://elvgames.itch.io/free-inventory-asset-pack)
+- bullet: BDragon1727 (https://bdragon1727.itch.io/fire-pixel-bullet-16x16)
+- font: Daniel Linssen (https://managore.itch.io/m6x11)
