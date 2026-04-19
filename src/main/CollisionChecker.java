@@ -65,9 +65,9 @@ public class CollisionChecker {
     public void checkHit() {
         for (Tank tank : gp.getTankList()) {
             for (Bullet bullet : gp.getBulletList()) {
-                if (bullet.isAlive() && tank.getSolidArea().intersects(bullet.getSolidArea())) {
+                if (tank.canBeDamaged() && bullet.canDamage() && tank.getSolidArea().intersects(bullet.getSolidArea())) {
                     tank.takeDamage(bullet.getDamage());
-                    bullet.setAlive(false);
+                    bullet.destroyImmediately();
                 }
             }
         }

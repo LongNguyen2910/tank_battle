@@ -35,10 +35,10 @@ public class GamePanel extends JPanel implements Runnable{
     private final ArrayList<Bullet> bulletList = new ArrayList<>();
 
     private final KeySetting keySettingPlayer1 = new KeySetting(KeyEvent.VK_W, KeyEvent.VK_D,
-            KeyEvent.VK_S, KeyEvent.VK_A, KeyEvent.VK_J, KeyEvent.VK_U, KeyEvent.VK_I);
+            KeyEvent.VK_S, KeyEvent.VK_A, KeyEvent.VK_K,KeyEvent.VK_J, KeyEvent.VK_U, KeyEvent.VK_I);
 
     private final KeySetting keySettingPlayer2 = new KeySetting(KeyEvent.VK_UP, KeyEvent.VK_RIGHT,
-            KeyEvent.VK_DOWN, KeyEvent.VK_LEFT, KeyEvent.VK_M, KeyEvent.VK_NUMPAD4, KeyEvent.VK_NUMPAD5);
+            KeyEvent.VK_DOWN, KeyEvent.VK_LEFT, KeyEvent.VK_NUMPAD2, KeyEvent.VK_M, KeyEvent.VK_NUMPAD4, KeyEvent.VK_NUMPAD5);
 
     public final int xSpawnPlayer1 = 2 * tileSize + 10;
     public final int ySpawnPlayer1 = screenHeight - 2 * tileSize - 10;
@@ -89,8 +89,12 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     public void update() {
-        for (var tank : tankList) {
+        for (int i = tankList.size() - 1; i >= 0; i--) {
+            Tank tank = tankList.get(i);
             tank.update();
+            if (tank.isPendingRemoval()) {
+                tankList.remove(i);
+            }
         }
         for (int i = bulletList.size() - 1; i >= 0; i--) {
             Bullet b = bulletList.get(i);
