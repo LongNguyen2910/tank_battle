@@ -129,9 +129,9 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void playerInit() {
         tankList.add(new Tank(this, keyH, TankType.NORMAL, 1, keySettingPlayer1));
-        tankList.add(new Tank(this, keyH, TankType.NORMAL, 2, keySettingPlayer2));
-        tankList.add(new Tank(this, keyH, TankType.NORMAL, 3, keySettingPlayer2));
-        tankList.add(new Tank(this, keyH, TankType.NORMAL, 4, keySettingPlayer2));
+        tankList.add(new Tank(this, keyH, TankType.HEAVY, 2, keySettingPlayer2));
+        tankList.add(new Tank(this, keyH, TankType.SCOUT, 3, keySettingPlayer2));
+        tankList.add(new Tank(this, keyH, TankType.MODERN, 4, keySettingPlayer2));
     }
 
     public CollisionChecker getCollisionChecker() {

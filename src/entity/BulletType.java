@@ -1,7 +1,10 @@
 package entity;
 
 public enum BulletType {
-    NORMAL(20, 10, 5, 8, 3, 5, 60, "/bullets/nor_bullet.png");
+    NORMAL(10, 10, 5, 8, 3, 5, 60, "/bullets/nor_bullet.png"),
+    HEAVY(15, 13, 7, 6, 1, 4, 120, "/bullets/heavy_bullet.png"),
+    LIGHT(8, 12, 4, 10, 2, 6, 30, "/bullets/light_bullet.png"),
+    ENERGY(10, 8, 5, 10, 4, 6, 60, "/bullets/nor1_bullet.png");
     private final int damage;
     private final int width;
     private final int height;

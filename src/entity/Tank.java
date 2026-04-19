@@ -361,13 +361,14 @@ public class Tank extends GameObject {
                         gp.tileSize, gp.tileSize, null);
 
                 textX = solidArea.x + (solidArea.width / 2) - (textLength / 2);
-                textY = solidArea.y +  solidArea.height + 15;
+                textY = solidArea.y - type.getHitboxY() * gp.scale + 32 * gp.scale + 15;
                 g2.setColor(java.awt.Color.BLACK);
                 g2.drawString(name, textX + 1, textY + 1);
                 g2.setColor(java.awt.Color.WHITE);
                 g2.drawString(name, textX, textY);
                 if (shotCooldown > 0) {
-                    g2.fillRect(solidArea.x - 15, (int)(solidArea.y + cooldownBarHeight), 5, (int)(cooldownBar - cooldownBarHeight));
+                    g2.fillRect(solidArea.x - type.getHitboxX() - 15, (int)(solidArea.y - type.getHitboxY() + cooldownBarHeight),
+                            5, (int)(cooldownBar - cooldownBarHeight));
                 }
                 break;
             case RIGHT:
@@ -382,7 +383,7 @@ public class Tank extends GameObject {
                 g2.setColor(java.awt.Color.WHITE);
                 g2.drawString(name, textX, textY);
                 if (shotCooldown > 0) {
-                    g2.fillRect(solidArea.x - 15, (int)(solidArea.y + cooldownBarHeight), 5, (int)(cooldownBar - cooldownBarHeight));
+                    g2.fillRect(solidArea.x - type.getHitboxX() * gp.scale - 10, (int)(solidArea.y + cooldownBarHeight), 5, (int)(cooldownBar - cooldownBarHeight));
                 }
                 break;
             case DOWN:
@@ -391,7 +392,7 @@ public class Tank extends GameObject {
                         gp.tileSize, gp.tileSize, null);
 
                 textX = solidArea.x + (solidArea.width / 2) - (textLength / 2);
-                textY = solidArea.y - 5;
+                textY = solidArea.y - type.getHitboxY() * gp.scale - 5;
                 g2.setColor(java.awt.Color.BLACK);
                 g2.drawString(name, textX + 1, textY + 1);
                 g2.setColor(java.awt.Color.WHITE);
@@ -422,8 +423,8 @@ public class Tank extends GameObject {
 
 
     public void drawUI(Graphics2D g2) {
-        int numSprite = 8 - (int)(currentHealth / 12.5);
-        int numSpriteFuel = 8 - (int)(currentFuel / 12.5);
+        int numSprite = 7 - (int)(currentHealth / (double)(100/7));
+        int numSpriteFuel = 7 - (int)(currentFuel / (double)(type.getFuel() / 7));
         switch (playerNum) {
             case 1:
                 //bottom left
