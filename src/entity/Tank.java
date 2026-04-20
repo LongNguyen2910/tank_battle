@@ -61,10 +61,13 @@ public class Tank extends GameObject {
     private final KeySetting keySetting;
 
     private int shotCooldown = 0;
+    private int shotCooldownMax = 1;
     private TankState state = TankState.IDLE;
     private int hitEffectTick = -1;
     private int invincibilityTick = -1;
     private int deathEffectTick = 0;
+
+    public SkillType[] skillSlots = {SkillType.NONE, SkillType.NONE};
 
     private boolean pendingRemoval = false;
 
@@ -82,6 +85,7 @@ public class Tank extends GameObject {
     private int poisonTicksRemaining = 0;
     private int poisonTickCounter = 0;
     private int poisonEffectTick = 0;
+    private Trap currentTrap = null;
 
     public Tank(GamePanel gp, KeyHandler keyH, TankType type, int playerNum, KeySetting keySetting) {
         this.gp = gp;
@@ -134,6 +138,9 @@ public class Tank extends GameObject {
         poisonTicksRemaining = 0;
         poisonTickCounter = 0;
         poisonEffectTick = 0;
+        shotCooldown = 0;
+        shotCooldownMax = 1;
+        currentTrap = null;
     }
 
     public void getSprite() {
@@ -215,6 +222,10 @@ public class Tank extends GameObject {
         updateSlowDebuffState();
         updatePoisonState();
 
+        if (shotCooldown > 0) {
+            shotCooldown--;
+        }
+
         int baseSpeed = type.getSpeed();
         int desiredSpeed = baseSpeed;
 
@@ -257,13 +268,17 @@ public class Tank extends GameObject {
             }
         }
 
-        handleSkillInput(keySetting.getKeySkill1(), SkillType.SHIELD);
-        handleSkillInput(keySetting.getKeySkill2(), SkillType.TRIPLE_SHOT);
+        handleSkillInput(keySetting.getKeySkill1(), skillSlots[0]);
+        handleSkillInput(keySetting.getKeySkill2(), skillSlots[1]);
 
         speed = applySlowDebuff(desiredSpeed);
 
         Direction inputDirection = readInputDirection();
         boolean movedThisTick = false;
+
+        if (currentTrap != null && !currentTrap.isExpired()) {
+            inputDirection = Direction.NONE;
+        }
 
         if (inputDirection != Direction.NONE) {
             if (state != TankState.TAKING_DAMAGE) {
@@ -281,10 +296,6 @@ public class Tank extends GameObject {
         }
 
         updateSlowTrailState(movedThisTick);
-
-        if (shotCooldown > 0) {
-            shotCooldown--;
-        }
 
         if (keyH.isPressed(keySetting.getKeyShoot()) && shotCooldown == 0) {
             shoot();
@@ -327,41 +338,47 @@ public class Tank extends GameObject {
     }
 
     private void shoot() {
+        BulletType shotBulletType = type.getBulletType();
         BulletEffectType shotEffect = armedBulletEffect;
         armedBulletEffect = BulletEffectType.NONE;
-        spawnBullet(direction, shotEffect);
-        shotCooldown = type.getBulletType().getCooldown();
+        spawnBullet(direction, shotBulletType, shotEffect);
+        startShotCooldown(shotBulletType.getCooldown());
     }
 
-    private void spawnBullet(Direction bulletDirection, BulletEffectType effectType) {
+    private void startShotCooldown(int cooldownTicks) {
+        shotCooldown = Math.max(0, cooldownTicks);
+        shotCooldownMax = Math.max(1, cooldownTicks);
+    }
+
+    private void spawnBullet(Direction bulletDirection, BulletType bulletType, BulletEffectType effectType) {
         if (bulletDirection == Direction.NONE) {
             return;
         }
 
-        Point spawnPoint = calculateBulletSpawnPoint(bulletDirection);
-        gp.addBullet(new Bullet(gp, spawnPoint.x, spawnPoint.y, bulletDirection, type, effectType));
+        Point spawnPoint = calculateBulletSpawnPoint(bulletDirection, bulletType);
+        gp.addBullet(new Bullet(gp, spawnPoint.x, spawnPoint.y, bulletDirection, bulletType, effectType, this));
     }
 
-    private Point calculateBulletSpawnPoint(Direction bulletDirection) {
+    private Point calculateBulletSpawnPoint(Direction bulletDirection, BulletType bulletType) {
         int bulletX = solidArea.x;
         int bulletY = solidArea.y;
 
         switch (bulletDirection) {
             case UP:
-                bulletX = solidArea.x + (solidArea.width / 2 - type.getBulletType().getWidth() + 2);
+                bulletX = solidArea.x + (solidArea.width / 2 - bulletType.getWidth() + 2);
                 bulletY = solidArea.y - solidArea.height / 2 - 5;
                 break;
             case RIGHT:
                 bulletX = solidArea.x + solidArea.width + 1;
-                bulletY = solidArea.y + (solidArea.height / 2 - type.getBulletType().getHeight() - 3);
+                bulletY = solidArea.y + (solidArea.height / 2 - bulletType.getHeight() - 3);
                 break;
             case DOWN:
-                bulletX = solidArea.x + (solidArea.width / 2 - type.getBulletType().getWidth() + 2);
+                bulletX = solidArea.x + (solidArea.width / 2 - bulletType.getWidth() + 2);
                 bulletY = solidArea.y + solidArea.height;
                 break;
             case LEFT:
                 bulletX = solidArea.x - solidArea.width / 2 - 6;
-                bulletY = solidArea.y + (solidArea.height / 2 - type.getBulletType().getWidth() + 2);
+                bulletY = solidArea.y + (solidArea.height / 2 - bulletType.getWidth() + 2);
                 break;
             case NONE:
                 break;
@@ -377,12 +394,42 @@ public class Tank extends GameObject {
 
         Direction leftDirection = getLeftDirection(direction);
         Direction rightDirection = getRightDirection(direction);
+        BulletType shotBulletType = type.getBulletType();
 
-        spawnBullet(direction, BulletEffectType.NONE);
-        spawnBullet(leftDirection, BulletEffectType.NONE);
-        spawnBullet(rightDirection, BulletEffectType.NONE);
+        spawnBullet(direction, shotBulletType, BulletEffectType.NONE);
+        spawnBullet(leftDirection, shotBulletType, BulletEffectType.NONE);
+        spawnBullet(rightDirection, shotBulletType, BulletEffectType.NONE);
 
-        shotCooldown = type.getBulletType().getCooldown();
+        startShotCooldown(shotBulletType.getCooldown());
+    }
+
+    public void activateBigPhaseShot() {
+        if (shotCooldown > 0 || direction == Direction.NONE) {
+            return;
+        }
+
+        spawnBullet(direction, BulletType.BIG_BULLET, BulletEffectType.PIERCING);
+        startShotCooldown(BulletType.BIG_BULLET.getCooldown());
+    }
+
+    public void activateBomb() {
+        int centerX = solidArea.x + solidArea.width / 2;
+        int centerY = solidArea.y + solidArea.height / 2;
+        gp.addBomb(new Bomb(centerX, centerY, this));
+    }
+
+    public void activateTrap() {
+        int centerX = solidArea.x + solidArea.width / 2;
+        int centerY = solidArea.y + solidArea.height / 2;
+        gp.addTrap(new Trap(centerX, centerY, this));
+    }
+
+    public void trapTank(Trap trap) {
+        currentTrap = trap;
+    }
+
+    public void releaseTrap() {
+        currentTrap = null;
     }
 
     private void handleSkillInput(int skillKey, SkillType skill) {
@@ -430,6 +477,7 @@ public class Tank extends GameObject {
         return switch (skill) {
             case SHIELD -> !hasShield;
             case TRIPLE_SHOT -> shotCooldown == 0 && direction != Direction.NONE;
+            case BIG_PHASE_SHOT -> shotCooldown == 0 && direction != Direction.NONE;
             default -> true;
         };
     }
@@ -606,6 +654,7 @@ public class Tank extends GameObject {
         hitEffectTick = -1;
         invincibilityTick = -1;
         shotCooldown = 0;
+        shotCooldownMax = 1;
         slowTrailSegments.clear();
     }
 
@@ -744,7 +793,8 @@ public class Tank extends GameObject {
         int textLength = (int) g.getFontMetrics().getStringBounds(name, g).getWidth();
         int textX, textY;
         final int cooldownBar = Config.TILE_SIZE / 2;
-        double cooldownBarHeight = (double)shotCooldown / type.getBulletType().getCooldown() * cooldownBar;
+        double cooldownBarHeight = (double) shotCooldown / Math.max(1, shotCooldownMax) * cooldownBar;
+        cooldownBarHeight = Math.min(cooldownBar, Math.max(0, cooldownBarHeight));
         switch (direction) {
             case UP:
                 tank =  sprite.getSubimage(0, 0, 32, 32);
