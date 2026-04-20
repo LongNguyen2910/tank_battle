@@ -65,9 +65,29 @@ public class CollisionChecker {
     public void checkHit() {
         for (Tank tank : gp.getTankList()) {
             for (Bullet bullet : gp.getBulletList()) {
-                if (tank.canBeDamaged() && bullet.canDamage() && tank.getSolidArea().intersects(bullet.getSolidArea())) {
-                    tank.takeDamage(bullet.getDamage());
-                    bullet.destroyImmediately();
+                if (bullet.canDamage() && tank.getSolidArea().intersects(bullet.getSolidArea())) {
+                    Rectangle bulletArea = bullet.getSolidArea();
+                    int impactCenterX = bulletArea.x + bulletArea.width / 2;
+                    int impactCenterY = bulletArea.y + bulletArea.height / 2;
+
+                    if (tank.blockBulletIfPossible(bullet.getDirection(), impactCenterX, impactCenterY)) {
+                        bullet.startImpact();
+                        continue;
+                    }
+
+                    if (tank.canBeDamaged()) {
+                        boolean damageApplied = tank.takeDamage(bullet.getDamage(), bullet.getSolidArea().x, bullet.getSolidArea().y);
+                        if (damageApplied) {
+                            switch (bullet.getEffectType()) {
+                                case TOXIC -> tank.applyPoison();
+                                case PIERCING, NONE -> {
+                                    // no extra on-hit effect
+                                }
+                            }
+                        }
+                        bullet.destroyImmediately();
+                    }
+                    bullet.setAlive(false);
                 }
             }
         }

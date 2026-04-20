@@ -25,6 +25,7 @@ public class Bullet extends GameObject {
     private final BufferedImage[] bulletImg;
     private BufferedImage[] impactFrames = new BufferedImage[0];
     private final BulletType bulletType;
+    private final BulletEffectType effectType;
 
     public final int bulletScale;
     private int impactTick = 0;
@@ -32,6 +33,10 @@ public class Bullet extends GameObject {
     private int impactCenterY;
 
     public Bullet(GamePanel gp, int startX, int startY, Direction direction, TankType type) {
+        this(gp, startX, startY, direction, type, BulletEffectType.NONE);
+    }
+
+    public Bullet(GamePanel gp, int startX, int startY, Direction direction, TankType type, BulletEffectType effectType) {
         this.gp = gp;
         bulletType = type.getBulletType();
         bulletScale = gp.scale + 1;
@@ -39,6 +44,7 @@ public class Bullet extends GameObject {
         this.direction = direction;
         this.speed = bulletType.getBulletSpeed();
         this.damage = bulletType.getDamage();
+        this.effectType = effectType;
         bulletImg = new BufferedImage[4];
         loadBullet();
     }
@@ -104,10 +110,13 @@ public class Bullet extends GameObject {
             return;
         }
 
+        boolean terrainPiercing = effectType == BulletEffectType.PIERCING;
         collisionOn = false;
-        gp.getCollisionChecker().checkTile(this);
+        if (!terrainPiercing) {
+            gp.getCollisionChecker().checkTile(this);
+        }
 
-        if (collisionOn) {
+        if (!terrainPiercing && collisionOn) {
             startImpact();
         } else {
             switch (direction) {
@@ -247,5 +256,9 @@ public class Bullet extends GameObject {
 
     public int getDamage() {
         return damage;
+    }
+
+    public BulletEffectType getEffectType() {
+        return effectType;
     }
 }

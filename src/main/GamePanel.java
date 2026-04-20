@@ -1,9 +1,6 @@
 package main;
 
-import entity.Bullet;
-import entity.KeySetting;
-import entity.Tank;
-import entity.TankType;
+import entity.*;
 import tile.TileManager;
 
 import javax.swing.*;
@@ -33,6 +30,7 @@ public class GamePanel extends JPanel implements Runnable{
     private final CollisionChecker cChecker = new CollisionChecker(this);
 
     private final ArrayList<Bullet> bulletList = new ArrayList<>();
+    private final ArrayList<SlowZone> slowZoneList = new ArrayList<>();
 
     private final KeySetting keySettingPlayer1 = new KeySetting(KeyEvent.VK_W, KeyEvent.VK_D,
             KeyEvent.VK_S, KeyEvent.VK_A, KeyEvent.VK_K,KeyEvent.VK_J, KeyEvent.VK_U, KeyEvent.VK_I);
@@ -53,6 +51,8 @@ public class GamePanel extends JPanel implements Runnable{
     public final int ySpawnPlayer4 = 2 * tileSize;
 
     private final ArrayList<Tank> tankList = new ArrayList<>();
+
+    public ArrayList<SmokeParticle> particleList = new ArrayList<>();
 
     public GamePanel() {
         this.setPreferredSize(new Dimension(screenWidth, screenHeight));
@@ -110,6 +110,22 @@ public class GamePanel extends JPanel implements Runnable{
                 bulletList.remove(i);
             }
         }
+        for (int i = slowZoneList.size() - 1; i >= 0; i--) {
+            SlowZone zone = slowZoneList.get(i);
+            if (zone.isExpired()) {
+                slowZoneList.remove(i);
+            } else {
+                zone.update();
+            }
+        }
+        for (int i = particleList.size() - 1; i >= 0; i--) {
+            SmokeParticle p = particleList.get(i);
+            if (p.alive) {
+                p.update();
+            } else {
+                particleList.remove(i);
+            }
+        }
     }
 
     @Override
@@ -118,6 +134,12 @@ public class GamePanel extends JPanel implements Runnable{
         Graphics2D g2 = (Graphics2D) g;
 
         tileM.draw(g2);
+        for (SlowZone zone : slowZoneList) {
+            zone.draw(g2);
+        }
+        for (SmokeParticle p : particleList) {
+            p.draw(g2);
+        }
         for (var tank : tankList) {
             tank.draw(g2);
         }
@@ -129,9 +151,9 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void playerInit() {
         tankList.add(new Tank(this, keyH, TankType.NORMAL, 1, keySettingPlayer1));
-        tankList.add(new Tank(this, keyH, TankType.HEAVY, 2, keySettingPlayer2));
+        tankList.add(new Tank(this, keyH, TankType.HEAVY, 2, keySettingPlayer1));
         tankList.add(new Tank(this, keyH, TankType.SCOUT, 3, keySettingPlayer2));
-        tankList.add(new Tank(this, keyH, TankType.MODERN, 4, keySettingPlayer2));
+        tankList.add(new Tank(this, keyH, TankType.MODERN, 4, keySettingPlayer1));
     }
 
     public CollisionChecker getCollisionChecker() {
@@ -152,5 +174,13 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void addBullet(Bullet bullet) {
         bulletList.add(bullet);
+    }
+
+    public void addSlowZone(SlowZone slowZone) {
+        slowZoneList.add(slowZone);
+    }
+
+    public ArrayList<SlowZone> getSlowZoneList() {
+        return slowZoneList;
     }
 }
