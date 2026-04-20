@@ -123,19 +123,9 @@ public class startingscreen extends JPanel {
                         gpParent.revalidate();
                         gpParent.repaint();
                         gpParent.requestFocusInWindow();
-                    } else {
-                        // Otherwise (standalone), replace the window content with a new GamePanel and start it.
-                        java.awt.Window win = SwingUtilities.getWindowAncestor(startingscreen.this);
-                        if (win instanceof javax.swing.JFrame) {
-                            javax.swing.JFrame frame = (javax.swing.JFrame) win;
-                            frame.getContentPane().removeAll();
-                            GamePanel gp = new GamePanel();
-                            frame.add(gp);
-                            frame.pack();
-                            frame.setLocationRelativeTo(null);
-                            gp.startGameThread();
-                        }
                     }
+//                    dispose(); // Close menu
+                    new LobbyScreen().setVisible(true); // Open Lobby
                 } else if (selectedName.equals("Setting")) {
                     java.awt.Window win = SwingUtilities.getWindowAncestor(startingscreen.this);
                     javax.swing.JFrame parent = null;

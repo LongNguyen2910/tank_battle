@@ -1,9 +1,6 @@
 package main;
 
-import entity.Bullet;
-import entity.KeySetting;
-import entity.Tank;
-import entity.TankType;
+import entity.*;
 import tile.TileManager;
 import ui.startingscreen;
 import ui.Pause;
@@ -32,6 +29,9 @@ public class GamePanel extends JPanel implements Runnable{
     private final CollisionChecker cChecker = new CollisionChecker(this);
 
     private final ArrayList<Bullet> bulletList = new ArrayList<>();
+    private final ArrayList<SlowZone> slowZoneList = new ArrayList<>();
+    private final ArrayList<Bomb> bombList = new ArrayList<>();
+    private final ArrayList<Trap> trapList = new ArrayList<>();
 
     private final KeySetting keySettingPlayer1 = new KeySetting(Config.P1_UP, Config.P1_RIGHT,
             Config.P1_DOWN, Config.P1_LEFT, Config.P1_SHOOT, Config.P1_DASH, Config.P1_SKILL1, Config.P1_SKILL2);
@@ -52,8 +52,13 @@ public class GamePanel extends JPanel implements Runnable{
     public final int ySpawnPlayer4 = Config.Y_SPAWN_PLAYER_4;
     
     private final ArrayList<Tank> tankList = new ArrayList<>();
-    
-    public GamePanel() {
+
+    public ArrayList<SmokeParticle> particleList = new ArrayList<>();
+
+    private GameConfig config;
+
+    public GamePanel(GameConfig config) {
+        this.config = config;
         this.setPreferredSize(new Dimension(Config.SCREEN_WIDTH, Config.SCREEN_HEIGHT));
         this.setBackground(Color.BLACK);
         this.setDoubleBuffered(true);
@@ -115,8 +120,8 @@ public class GamePanel extends JPanel implements Runnable{
         });
         pauseOverlay.setVisible(false);
         // do not add to this panel's layout; we'll place the overlay on the
-        // root layered pane when pausing so it reliably appears above everything
-
+        // root layered pane when pausing so it reliably appears above everything        
+        tileM.loadMap(config.mapPath);
         playerInit();
     }
 
@@ -164,9 +169,41 @@ public class GamePanel extends JPanel implements Runnable{
             }
         }
         cChecker.checkHit();
+        cChecker.checkBombHit();
+        cChecker.checkTrapHit();
         for (int i = bulletList.size() - 1; i >= 0; i--) {
             if (!bulletList.get(i).isAlive()) {
                 bulletList.remove(i);
+            }
+        }
+        for (int i = bombList.size() - 1; i >= 0; i--) {
+            Bomb bomb = bombList.get(i);
+            bomb.update();
+            if (bomb.isExpired()) {
+                bombList.remove(i);
+            }
+        }
+        for (int i = trapList.size() - 1; i >= 0; i--) {
+            Trap trap = trapList.get(i);
+            trap.update();
+            if (trap.isExpired()) {
+                trapList.remove(i);
+            }
+        }
+        for (int i = slowZoneList.size() - 1; i >= 0; i--) {
+            SlowZone zone = slowZoneList.get(i);
+            if (zone.isExpired()) {
+                slowZoneList.remove(i);
+            } else {
+                zone.update();
+            }
+        }
+        for (int i = particleList.size() - 1; i >= 0; i--) {
+            SmokeParticle p = particleList.get(i);
+            if (p.alive) {
+                p.update();
+            } else {
+                particleList.remove(i);
             }
         }
     }
@@ -177,8 +214,20 @@ public class GamePanel extends JPanel implements Runnable{
         Graphics2D g2 = (Graphics2D) g;
 
         tileM.draw(g2);
+        for (SlowZone zone : slowZoneList) {
+            zone.draw(g2);
+        }
+        for (SmokeParticle p : particleList) {
+            p.draw(g2);
+        }
         for (var tank : tankList) {
             tank.draw(g2);
+        }
+        for (Bomb bomb : bombList) {
+            bomb.draw(g2);
+        }
+        for (Trap trap : trapList) {
+            trap.draw(g2);
         }
         for (Bullet b : bulletList) {
             b.draw(g2);
@@ -226,10 +275,18 @@ public class GamePanel extends JPanel implements Runnable{
     
 
     public void playerInit() {
-        tankList.add(new Tank(this, keyH, TankType.NORMAL, 1, keySettingPlayer1));
-        tankList.add(new Tank(this, keyH, TankType.HEAVY, 2, keySettingPlayer2));
-        tankList.add(new Tank(this, keyH, TankType.SCOUT, 3, keySettingPlayer2));
-        tankList.add(new Tank(this, keyH, TankType.MODERN, 4, keySettingPlayer2));
+        if (config.playerCount >= 1) {
+            tankList.add(new Tank(this, keyH, TankType.NORMAL, 1, keySettingPlayer1));
+        }
+        if (config.playerCount >= 2) {
+            tankList.add(new Tank(this, keyH, TankType.NORMAL, 2, keySettingPlayer2));
+        }
+        
+        for (int i = 0; i < config.computerCount; i++) {
+            int pNum = config.playerCount + i + 1;
+            // Use dummy keys for computers for now
+            tankList.add(new Tank(this, keyH, TankType.NORMAL, pNum, new KeySetting(0,0,0,0,0,0,0,0)));
+        }
     }
 
     public CollisionChecker getCollisionChecker() {
@@ -258,5 +315,29 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void addBullet(Bullet bullet) {
         bulletList.add(bullet);
+    }
+
+    public void addSlowZone(SlowZone slowZone) {
+        slowZoneList.add(slowZone);
+    }
+
+    public void addBomb(Bomb bomb) {
+        bombList.add(bomb);
+    }
+
+    public void addTrap(Trap trap) {
+        trapList.add(trap);
+    }
+
+    public ArrayList<SlowZone> getSlowZoneList() {
+        return slowZoneList;
+    }
+
+    public ArrayList<Bomb> getBombList() {
+        return bombList;
+    }
+
+    public ArrayList<Trap> getTrapList() {
+        return trapList;
     }
 }

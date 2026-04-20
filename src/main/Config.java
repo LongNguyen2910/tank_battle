@@ -47,8 +47,8 @@ public class Config {
     public static int P2_DOWN = KeyEvent.VK_DOWN;
     public static int P2_LEFT = KeyEvent.VK_LEFT;
     public static int P2_RIGHT = KeyEvent.VK_RIGHT;
-    public static int P2_SHOOT = KeyEvent.VK_NUMPAD2;
-    public static int P2_DASH = KeyEvent.VK_M;
+    public static int P2_SHOOT = KeyEvent.VK_NUMPAD1;
+    public static int P2_DASH = KeyEvent.VK_NUMPAD2;
     public static int P2_SKILL1 = KeyEvent.VK_NUMPAD4;
     public static int P2_SKILL2 = KeyEvent.VK_NUMPAD5;
 

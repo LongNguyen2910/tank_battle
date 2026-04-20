@@ -18,7 +18,6 @@ public class Bullet extends GameObject {
 
     private static final int HIT_EFFECT_SPRITE_SIZE = 48;
     private static final int HIT_TICKS_PER_FRAME = 3;
-    private static final int BULLET_SPRITE_SIZE = 16;
 
     private final GamePanel gp;
     private BulletState state = BulletState.FLYING;
@@ -26,6 +25,8 @@ public class Bullet extends GameObject {
     private final BufferedImage[] bulletImg;
     private BufferedImage[] impactFrames = new BufferedImage[0];
     private final BulletType bulletType;
+    private final BulletEffectType effectType;
+    private final Tank owner;
 
     public final int bulletScale;
     private int impactTick = 0;
@@ -33,13 +34,27 @@ public class Bullet extends GameObject {
     private int impactCenterY;
 
     public Bullet(GamePanel gp, int startX, int startY, Direction direction, TankType type) {
+        this(gp, startX, startY, direction, type, BulletEffectType.NONE);
+    }
+
+    public Bullet(GamePanel gp, int startX, int startY, Direction direction, TankType type, BulletEffectType effectType) {
+        this(gp, startX, startY, direction, type.getBulletType(), effectType, null);
+    }
+
+    public Bullet(GamePanel gp, int startX, int startY, Direction direction, BulletType bulletType, BulletEffectType effectType) {
+        this(gp, startX, startY, direction, bulletType, effectType, null);
+    }
+
+    public Bullet(GamePanel gp, int startX, int startY, Direction direction, BulletType bulletType, BulletEffectType effectType, Tank owner) {
         this.gp = gp;
-        bulletType = type.getBulletType();
+        this.bulletType = bulletType;
         bulletScale = Config.SCALE + 1;
         solidArea = new Rectangle(startX, startY, bulletType.getWidth() * bulletScale, bulletType.getHeight() * bulletScale);
         this.direction = direction;
         this.speed = bulletType.getBulletSpeed();
         this.damage = bulletType.getDamage();
+        this.effectType = effectType;
+        this.owner = owner;
         bulletImg = new BufferedImage[4];
         loadBullet();
     }
@@ -48,10 +63,13 @@ public class Bullet extends GameObject {
         BufferedImage img;
         try {
             img = loadImage(bulletType.getFilePath());
-            bulletImg[0] = img.getSubimage(0, 0, BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE);
-            bulletImg[1] = img.getSubimage(0, 16, BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE);
-            bulletImg[2] = img.getSubimage(0, 32, BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE);
-            bulletImg[3] = img.getSubimage(0, 48, BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE);
+            int frameSize = bulletType.getSpriteFrameSize();
+            for (int i = 0; i < bulletImg.length; i++) {
+                int frameY = i * frameSize;
+                if (frameSize <= img.getWidth() && frameY + frameSize <= img.getHeight()) {
+                    bulletImg[i] = img.getSubimage(0, frameY, frameSize, frameSize);
+                }
+            }
             impactFrames = loadEffectFrames("/tanks/bullet_hit.png", HIT_EFFECT_SPRITE_SIZE);
         } catch (IOException e) {
             System.out.println("Error loading bullet's sprite" + e.getMessage());
@@ -105,10 +123,13 @@ public class Bullet extends GameObject {
             return;
         }
 
+        boolean terrainPiercing = effectType == BulletEffectType.PIERCING;
         collisionOn = false;
-        gp.getCollisionChecker().checkTile(this);
+        if (!terrainPiercing) {
+            gp.getCollisionChecker().checkTile(this);
+        }
 
-        if (collisionOn) {
+        if (!terrainPiercing && collisionOn) {
             startImpact();
         } else {
             switch (direction) {
@@ -154,6 +175,47 @@ public class Bullet extends GameObject {
         cacheImpactCenter();
         impactTick = 0;
         state = BulletState.IMPACT;
+
+        // Check if hitting breakable tile
+        checkAndBreakTile();
+    }
+
+    private void checkAndBreakTile() {
+        // Sử dụng offset lớn hơn (nửa ô gạch) để đảm bảo chạm tới ô tường đã gây va chạm
+        int offset = Config.TILE_SIZE / 2;
+        
+        // Kiểm tra 2 điểm ở đầu viên đạn (trái và phải hoặc trên và dưới) để phủ hết độ rộng của đạn
+        int[][] checkPoints = new int[2][2];
+        
+        switch (direction) {
+            case UP:
+                checkPoints[0] = new int[]{solidArea.x, solidArea.y - offset};
+                checkPoints[1] = new int[]{solidArea.x + solidArea.width - 1, solidArea.y - offset};
+                break;
+            case DOWN:
+                checkPoints[0] = new int[]{solidArea.x, solidArea.y + solidArea.height + offset};
+                checkPoints[1] = new int[]{solidArea.x + solidArea.width - 1, solidArea.y + solidArea.height + offset};
+                break;
+            case LEFT:
+                checkPoints[0] = new int[]{solidArea.x - offset, solidArea.y};
+                checkPoints[1] = new int[]{solidArea.x - offset, solidArea.y + solidArea.height - 1};
+                break;
+            case RIGHT:
+                checkPoints[0] = new int[]{solidArea.x + solidArea.width + offset, solidArea.y};
+                checkPoints[1] = new int[]{solidArea.x + solidArea.width + offset, solidArea.y + solidArea.height - 1};
+                break;
+        }
+
+        for (int[] p : checkPoints) {
+            int col = p[0] / Config.TILE_SIZE;
+            int row = p[1] / Config.TILE_SIZE;
+            
+            int tileId = gp.getTileManager().getTileIdAt(col, row);
+            tile.Tile t = gp.getTileManager().getTile(tileId);
+            if (t != null && t.isBreakable()) {
+                gp.getTileManager().setTileAt(col, row, 0); // Phá tường
+            }
+        }
     }
 
     public boolean canDamage() {
@@ -171,22 +233,23 @@ public class Bullet extends GameObject {
         }
 
         g2.setColor(Color.YELLOW);
+        int frameSize = bulletType.getSpriteFrameSize();
         switch (direction) {
             case UP:
                 g2.drawImage(bulletImg[0], solidArea.x - bulletType.getyOffset() * bulletScale, solidArea.y - bulletType.getxOffset() * bulletScale,
-                        BULLET_SPRITE_SIZE * bulletScale, BULLET_SPRITE_SIZE * bulletScale, null);
+                        frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
             case RIGHT:
                 g2.drawImage(bulletImg[1], solidArea.x - bulletType.getxOffset() * bulletScale, solidArea.y - bulletType.getyOffset() * bulletScale,
-                        BULLET_SPRITE_SIZE * bulletScale, BULLET_SPRITE_SIZE * bulletScale, null);
+                        frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
             case DOWN:
                 g2.drawImage(bulletImg[2], solidArea.x - bulletType.getyOffset() * bulletScale, solidArea.y - bulletType.getxOffset() * bulletScale,
-                        BULLET_SPRITE_SIZE * bulletScale, BULLET_SPRITE_SIZE * bulletScale, null);
+                        frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
             case LEFT:
                 g2.drawImage(bulletImg[3], solidArea.x - bulletType.getxOffset() * bulletScale, solidArea.y - bulletType.getyOffset() * bulletScale,
-                        BULLET_SPRITE_SIZE * bulletScale, BULLET_SPRITE_SIZE * bulletScale, null);
+                        frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
         }
         g2.setColor(Color.RED);
@@ -248,5 +311,17 @@ public class Bullet extends GameObject {
 
     public int getDamage() {
         return damage;
+    }
+
+    public BulletEffectType getEffectType() {
+        return effectType;
+    }
+
+    public Tank getOwner() {
+        return owner;
+    }
+
+    public BulletType getBulletType() {
+        return bulletType;
     }
 }
