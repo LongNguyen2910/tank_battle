@@ -1,5 +1,6 @@
 package entity;
 
+import main.Config;
 import main.GamePanel;
 import main.KeyHandler;
 
@@ -66,22 +67,22 @@ public class Tank extends GameObject {
         speed = type.getSpeed();
         direction = Direction.UP;
         solidArea = new Rectangle(100, 100,
-                type.getHitboxSize() * gp.scale, type.getHitboxSize() * gp.scale);
+                type.getHitboxSize() * Config.SCALE, type.getHitboxSize() * Config.SCALE);
         if (playerNum == 1) {
-            solidArea.x = gp.xSpawnPlayer1;
-            solidArea.y = gp.ySpawnPlayer1;
+            solidArea.x = Config.X_SPAWN_PLAYER_1;
+            solidArea.y = Config.Y_SPAWN_PLAYER_1;
         } else if (playerNum == 2) {
-            solidArea.x = gp.xSpawnPlayer2;
-            solidArea.y = gp.ySpawnPlayer2;
+            solidArea.x = Config.X_SPAWN_PLAYER_2;
+            solidArea.y = Config.Y_SPAWN_PLAYER_2;
         } else  if (playerNum == 3) {
-            solidArea.x = gp.xSpawnPlayer3;
-            solidArea.y = gp.ySpawnPlayer3;
+            solidArea.x = Config.X_SPAWN_PLAYER_3;
+            solidArea.y = Config.Y_SPAWN_PLAYER_3;
         } else if (playerNum == 4) {
-            solidArea.x = gp.xSpawnPlayer4;
-            solidArea.y = gp.ySpawnPlayer4;
+            solidArea.x = Config.X_SPAWN_PLAYER_4;
+            solidArea.y = Config.Y_SPAWN_PLAYER_4;
         }
-        currentHealth = 100;
-        currentFuel = maxFuel;
+        currentHealth = Config.MAX_HEALTH;
+        currentFuel = Config.MAX_FUEL;
         state = TankState.IDLE;
         hitEffectTick = -1;
         deathEffectTick = 0;
@@ -321,7 +322,7 @@ public class Tank extends GameObject {
         }
 
         int frame = Math.min(hitEffectFrames.length - 1, hitEffectTick / HIT_TICKS_PER_FRAME);
-        drawCenteredEffect(g2, hitEffectFrames[frame], 48 * gp.scale);
+        drawCenteredEffect(g2, hitEffectFrames[frame], 48 * Config.SCALE);
     }
 
     private void drawDeathEffect(Graphics2D g2) {
@@ -330,7 +331,7 @@ public class Tank extends GameObject {
         }
 
         int frame = Math.min(deathEffectFrames.length - 1, deathEffectTick / DEATH_TICKS_PER_FRAME);
-        drawCenteredEffect(g2, deathEffectFrames[frame], 64 * gp.scale);
+        drawCenteredEffect(g2, deathEffectFrames[frame], 64 * Config.SCALE);
     }
 
     private void drawCenteredEffect(Graphics2D g2, BufferedImage frame, int drawSize) {
@@ -352,16 +353,16 @@ public class Tank extends GameObject {
         g2.setColor(java.awt.Color.WHITE);
         int textLength = (int) g2.getFontMetrics().getStringBounds(name, g2).getWidth();
         int textX, textY;
-        final int cooldownBar = gp.tileSize / 2;
+        final int cooldownBar = Config.TILE_SIZE / 2;
         double cooldownBarHeight = (double)shotCooldown / type.getBulletType().getCooldown() * cooldownBar;
         switch (direction) {
             case UP:
                 tank =  sprite.getSubimage(0, 0, 32, 32);
-                g2.drawImage(tank, solidArea.x - type.getHitboxX() * gp.scale, solidArea.y - type.getHitboxY() * gp.scale,
-                        gp.tileSize, gp.tileSize, null);
+                g2.drawImage(tank, solidArea.x - type.getHitboxX() * Config.SCALE, solidArea.y - type.getHitboxY() * Config.SCALE,
+                        Config.TILE_SIZE, Config.TILE_SIZE, null);
 
                 textX = solidArea.x + (solidArea.width / 2) - (textLength / 2);
-                textY = solidArea.y - type.getHitboxY() * gp.scale + 32 * gp.scale + 15;
+                textY = solidArea.y - type.getHitboxY() * Config.SCALE + 32 * Config.SCALE + 15;
                 g2.setColor(java.awt.Color.BLACK);
                 g2.drawString(name, textX + 1, textY + 1);
                 g2.setColor(java.awt.Color.WHITE);
@@ -373,8 +374,8 @@ public class Tank extends GameObject {
                 break;
             case RIGHT:
                 tank =  sprite.getSubimage(0, 32, 32, 32);
-                g2.drawImage(tank, solidArea.x - (32 - type.getHitboxY() - type.getHitboxSize()) * gp.scale, solidArea.y - type.getHitboxX() * gp.scale,
-                        gp.tileSize, gp.tileSize, null);
+                g2.drawImage(tank, solidArea.x - (32 - type.getHitboxY() - type.getHitboxSize()) * Config.SCALE, solidArea.y - type.getHitboxX() * Config.SCALE,
+                        Config.TILE_SIZE, Config.TILE_SIZE, null);
 
                 textX = solidArea.x + (solidArea.width / 2) - (textLength / 2);
                 textY = solidArea.y +  solidArea.height + 15;
@@ -383,16 +384,16 @@ public class Tank extends GameObject {
                 g2.setColor(java.awt.Color.WHITE);
                 g2.drawString(name, textX, textY);
                 if (shotCooldown > 0) {
-                    g2.fillRect(solidArea.x - type.getHitboxX() * gp.scale - 10, (int)(solidArea.y + cooldownBarHeight), 5, (int)(cooldownBar - cooldownBarHeight));
+                    g2.fillRect(solidArea.x - type.getHitboxX() * Config.SCALE - 10, (int)(solidArea.y + cooldownBarHeight), 5, (int)(cooldownBar - cooldownBarHeight));
                 }
                 break;
             case DOWN:
                 tank =  sprite.getSubimage(0, 64, 32, 32);
-                g2.drawImage(tank, solidArea.x - type.getHitboxX() * gp.scale, solidArea.y- (32 - type.getHitboxY() - type.getHitboxSize()) * gp.scale,
-                        gp.tileSize, gp.tileSize, null);
+                g2.drawImage(tank, solidArea.x - type.getHitboxX() * Config.SCALE, solidArea.y- (32 - type.getHitboxY() - type.getHitboxSize()) * Config.SCALE,
+                        Config.TILE_SIZE, Config.TILE_SIZE, null);
 
                 textX = solidArea.x + (solidArea.width / 2) - (textLength / 2);
-                textY = solidArea.y - type.getHitboxY() * gp.scale - 5;
+                textY = solidArea.y - type.getHitboxY() * Config.SCALE - 5;
                 g2.setColor(java.awt.Color.BLACK);
                 g2.drawString(name, textX + 1, textY + 1);
                 g2.setColor(java.awt.Color.WHITE);
@@ -403,8 +404,8 @@ public class Tank extends GameObject {
                 break;
             case LEFT:
                 tank =  sprite.getSubimage(0, 96, 32, 32);
-                g2.drawImage(tank, solidArea.x - type.getHitboxY() * gp.scale, solidArea.y - type.getHitboxX() * gp.scale,
-                        gp.tileSize, gp.tileSize, null);
+                g2.drawImage(tank, solidArea.x - type.getHitboxY() * Config.SCALE, solidArea.y - type.getHitboxX() * Config.SCALE,
+                        Config.TILE_SIZE, Config.TILE_SIZE, null);
 
                 textX = solidArea.x + (solidArea.width / 2) - (textLength / 2);
                 textY = solidArea.y +  solidArea.height + 15;
@@ -423,24 +424,24 @@ public class Tank extends GameObject {
 
 
     public void drawUI(Graphics2D g2) {
-        int numSprite = 7 - (int)(currentHealth / (double)(100/7));
-        int numSpriteFuel = 7 - (int)(currentFuel / (double)(type.getFuel() / 7));
+        int numSprite = 7 - (int)(currentHealth / (double)(Config.MAX_HEALTH/7));
+        int numSpriteFuel = 7 - (int)(currentFuel / (double)(Config.MAX_FUEL / 7));
         switch (playerNum) {
             case 1:
                 //bottom left
-                g2.drawImage(healthStatus[numSprite], 5, gp.screenHeight - 98,48, 48, null);
-                g2.drawImage(fuelStatus[numSpriteFuel], 5, gp.screenHeight - 48,48 , 48, null);
-                g2.drawImage(slotSkill1, 52, gp.screenHeight - 30, 32, 32, null);
-                g2.drawImage(slotSkill2, 80, gp.screenHeight - 30, 32, 32, null);
+                g2.drawImage(healthStatus[numSprite], 5, Config.SCREEN_HEIGHT - 98,48, 48, null);
+                g2.drawImage(fuelStatus[numSpriteFuel], 5, Config.SCREEN_HEIGHT - 48,48 , 48, null);
+                g2.drawImage(slotSkill1, 52, Config.SCREEN_HEIGHT - 30, 32, 32, null);
+                g2.drawImage(slotSkill2, 80, Config.SCREEN_HEIGHT - 30, 32, 32, null);
                 break;
             case 2:
                 //bottom right
-                g2.drawImage(healthStatus[numSprite], gp.screenWidth - 48 - 1, gp.screenHeight - 98,
+                g2.drawImage(healthStatus[numSprite], Config.SCREEN_WIDTH - 48 - 1, Config.SCREEN_HEIGHT - 98,
                         48, 48, null);
-                g2.drawImage(fuelStatus[numSpriteFuel], gp.screenWidth - 48 - 1, gp.screenHeight - 48,
+                g2.drawImage(fuelStatus[numSpriteFuel], Config.SCREEN_WIDTH - 48 - 1, Config.SCREEN_HEIGHT - 48,
                         48, 48, null);
-                g2.drawImage(slotSkill1, gp.screenWidth - 52 - 27 , gp.screenHeight - 30, 32, 32, null);
-                g2.drawImage(slotSkill2, gp.screenWidth - 80 - 27, gp.screenHeight - 30, 32, 32, null);
+                g2.drawImage(slotSkill1, Config.SCREEN_WIDTH - 52 - 27 , Config.SCREEN_HEIGHT - 30, 32, 32, null);
+                g2.drawImage(slotSkill2, Config.SCREEN_WIDTH - 80 - 27, Config.SCREEN_HEIGHT - 30, 32, 32, null);
 
                 break;
             case 3:
@@ -455,12 +456,12 @@ public class Tank extends GameObject {
                 break;
             case 4:
                 //top right
-                g2.drawImage(healthStatus[numSprite], gp.screenWidth - 48 - 1, 0,
+                g2.drawImage(healthStatus[numSprite], Config.SCREEN_WIDTH - 48 - 1, 0,
                         48, 48, null);
-                g2.drawImage(fuelStatus[numSpriteFuel], gp.screenWidth - 48 - 1, 50,
+                g2.drawImage(fuelStatus[numSpriteFuel], Config.SCREEN_WIDTH - 48 - 1, 50,
                         48, 48, null);
-                g2.drawImage(slotSkill1, gp.screenWidth - 52 - 27 , 0, 32, 32, null);
-                g2.drawImage(slotSkill2, gp.screenWidth - 80 - 27, 0, 32, 32, null);
+                g2.drawImage(slotSkill1, Config.SCREEN_WIDTH - 52 - 27 , 0, 32, 32, null);
+                g2.drawImage(slotSkill2, Config.SCREEN_WIDTH - 80 - 27, 0, 32, 32, null);
 
                 break;
         }

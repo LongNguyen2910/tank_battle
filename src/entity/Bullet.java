@@ -1,5 +1,6 @@
 package entity;
 
+import main.Config;
 import main.GamePanel;
 
 import javax.imageio.ImageIO;
@@ -34,7 +35,7 @@ public class Bullet extends GameObject {
     public Bullet(GamePanel gp, int startX, int startY, Direction direction, TankType type) {
         this.gp = gp;
         bulletType = type.getBulletType();
-        bulletScale = gp.scale + 1;
+        bulletScale = Config.SCALE + 1;
         solidArea = new Rectangle(startX, startY, bulletType.getWidth() * bulletScale, bulletType.getHeight() * bulletScale);
         this.direction = direction;
         this.speed = bulletType.getBulletSpeed();
@@ -203,7 +204,7 @@ public class Bullet extends GameObject {
             return;
         }
 
-        int drawSize = HIT_EFFECT_SPRITE_SIZE * gp.scale;
+        int drawSize = HIT_EFFECT_SPRITE_SIZE * Config.SCALE;
         int drawX = switch (direction) {
             case RIGHT ->  impactCenterX - drawSize / 2 + 10;
             case LEFT ->  impactCenterX - drawSize / 2 - 10;

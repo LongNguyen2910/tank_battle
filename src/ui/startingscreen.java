@@ -1,5 +1,6 @@
 package ui;
 
+import main.Config;
 import main.GameWindow;
 import javax.swing.*;
 import java.awt.*;
@@ -18,7 +19,7 @@ public class startingscreen extends JFrame {
 
     public startingscreen() {
         setTitle("Tank battle");
-        setSize(1000, 700);
+        setSize(Config.MENU_WIDTH, Config.MENU_HEIGHT);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setResizable(false);
@@ -119,6 +120,8 @@ public class startingscreen extends JFrame {
                 } else if (selectedName.equals("Start")) {
                     dispose(); // Close menu
                     new GameWindow(); // Start game
+                } else if (selectedName.equals("Setting")) {
+                    new SettingsDialog(startingscreen.this).setVisible(true);
                 } else {
                     JOptionPane.showMessageDialog(startingscreen.this, "Vừa ấn: " + selectedName);
                 }
