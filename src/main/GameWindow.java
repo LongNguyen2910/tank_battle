@@ -10,15 +10,25 @@ public class GameWindow extends JFrame {
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         this.setResizable(false);
         startingscreen menu = new startingscreen();
-		GamePanel gamePanel = new GamePanel(config);
+        GamePanel gamePanel = new GamePanel(config);
         gamePanel.setLayout(new BorderLayout());
-        gamePanel.add(menu, BorderLayout.CENTER);
+
+        // If config requests immediate start, skip adding the main menu and show game directly
+        if (!config.startImmediately) {
+            gamePanel.add(menu, BorderLayout.CENTER);
+        }
+
         this.add(gamePanel);
         this.pack();
 
         this.setLocationRelativeTo(null);
         this.setVisible(true);
-        menu.requestFocusInWindow();
+
+        if (!config.startImmediately) {
+            menu.requestFocusInWindow();
+        } else {
+            gamePanel.requestFocusInWindow();
+        }
         gamePanel.startGameThread();
     }
 

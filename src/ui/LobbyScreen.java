@@ -200,6 +200,8 @@ public class LobbyScreen extends JFrame {
         AnimatedTacticalButton startBtn = new AnimatedTacticalButton("START GAME");
         startBtn.addActionListener(e -> {
             dispose();
+            // mark config so the created GameWindow starts immediately without showing main menu
+            config.startImmediately = true;
             new GameWindow(config);
         });
         footerPanel.add(startBtn);
