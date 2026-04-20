@@ -285,12 +285,7 @@ public class Tank extends GameObject {
                 state = TankState.MOVING;
             }
             direction = inputDirection;
-            collisionOn = false;
-            gp.getCollisionChecker().checkTile(this);
-            if (!collisionOn) {
-                move(direction);
-                movedThisTick = true;
-            }
+            movedThisTick = movePixelByPixel(direction, speed);
         } else if (state == TankState.MOVING) {
             state = TankState.IDLE;
         }
@@ -335,6 +330,29 @@ public class Tank extends GameObject {
             case NONE:
                 break;
         }
+    }
+
+    private boolean movePixelByPixel(Direction moveDirection, int totalDistance) {
+        if (moveDirection == Direction.NONE || totalDistance <= 0) {
+            return false;
+        }
+
+        boolean moved = false;
+        int originalSpeed = speed;
+        speed = 1;
+
+        for (int i = 0; i < totalDistance; i++) {
+            collisionOn = false;
+            gp.getCollisionChecker().checkTile(this, 1);
+            if (collisionOn) {
+                break;
+            }
+            move(moveDirection);
+            moved = true;
+        }
+
+        speed = originalSpeed;
+        return moved;
     }
 
     private void shoot() {

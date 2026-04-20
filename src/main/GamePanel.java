@@ -175,7 +175,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void playerInit() {
         if (config.playerCount >= 1) {
-            tankList.add(new Tank(this, keyH, TankType.NORMAL, 1, keySettingPlayer1));
+            tankList.add(new Tank(this, keyH, TankType.HEAVY, 1, keySettingPlayer1));
         }
         if (config.playerCount >= 2) {
             tankList.add(new Tank(this, keyH, TankType.NORMAL, 2, keySettingPlayer2));

@@ -2,7 +2,7 @@ package entity;
 
 public enum TankType {
     NORMAL(100,4 , 3, 5, 26,"/tanks/tank_01.png", BulletType.NORMAL),
-    HEAVY(80, 3, 0, 0, 32,"/tanks/tank_02.png", BulletType.HEAVY),
+    HEAVY(80, 3, 1, 1, 30,"/tanks/tank_02.png", BulletType.HEAVY),
     SCOUT(120, 5, 5, 6, 22,"/tanks/tank_03.png", BulletType.LIGHT),
     MODERN(120, 4, 5, 5, 22,"/tanks/tank_04.png", BulletType.ENERGY);
 

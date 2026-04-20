@@ -18,6 +18,10 @@ public class CollisionChecker {
     }
 
     public void checkTile(GameObject entity) {
+        checkTile(entity, entity.getSpeed());
+    }
+
+    public void checkTile(GameObject entity, int probeDistance) {
         Rectangle solidArea = entity.getSolidArea();
         int entityLeftX = solidArea.x;
         int entityRightX = solidArea.x + solidArea.width - 1;
@@ -30,22 +34,23 @@ public class CollisionChecker {
         int entityBottomRow = (entityBottomY / Config.TILE_SIZE);
 
         Direction direction = entity.getDirection();
+        int step = Math.max(1, probeDistance);
 
         switch (direction) {
             case UP:
-                entityTopRow = (entityTopY - entity.getSpeed()) / Config.TILE_SIZE;
+                entityTopRow = (entityTopY - step) / Config.TILE_SIZE;
                 checkCollision(entity, entityLeftCol, entityTopRow, entityRightCol, entityTopRow);
                 break;
             case DOWN:
-                entityBottomRow = (entityBottomY + entity.getSpeed()) / Config.TILE_SIZE;
+                entityBottomRow = (entityBottomY + step) / Config.TILE_SIZE;
                 checkCollision(entity, entityLeftCol, entityBottomRow, entityRightCol, entityBottomRow);
                 break;
             case LEFT:
-                entityLeftCol = (entityLeftX - entity.getSpeed()) / Config.TILE_SIZE;
+                entityLeftCol = (entityLeftX - step) / Config.TILE_SIZE;
                 checkCollision(entity, entityLeftCol, entityTopRow, entityLeftCol, entityBottomRow);
                 break;
             case RIGHT:
-                entityRightCol = (entityRightX + entity.getSpeed()) / Config.TILE_SIZE;
+                entityRightCol = (entityRightX + step) / Config.TILE_SIZE;
                 checkCollision(entity, entityRightCol, entityTopRow, entityRightCol, entityBottomRow);
                 break;
             case NONE:
