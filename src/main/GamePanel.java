@@ -5,6 +5,7 @@ import item.Item;
 import tile.TileManager;
 import ui.startingscreen;
 import ui.Pause;
+import ui.WinnerOverlay;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -60,6 +61,10 @@ public class GamePanel extends JPanel implements Runnable{
     public ArrayList<SmokeParticle> particleList = new ArrayList<>();
 
     private GameConfig config;
+    private boolean gameEnded = false;
+    private WinnerOverlay winnerOverlay;
+    private int matchSecondsRemaining;
+    private int secondTickCounter = 0;
 
     public ArrayList<Item> itemList = new ArrayList<>();
     private final Random random = new Random();
@@ -159,6 +164,8 @@ public class GamePanel extends JPanel implements Runnable{
         // root layered pane when pausing so it reliably appears above everything        
         tileM.loadMap(config.mapPath);
         playerInit();
+
+        matchSecondsRemaining = Math.max(0, Config.MATCH_TIME);
     }
 
     public void startGameThread() {
@@ -202,6 +209,11 @@ public class GamePanel extends JPanel implements Runnable{
         if (itemSpawnTick >= ITEM_SPAWN_INTERVAL_TICKS) {
             itemSpawnTick = 0;
             trySpawnRandomItem();
+        }
+
+        if (!gameEnded) {
+            updateMatchTimer();
+            checkForWinner();
         }
 
         for (int i = tankList.size() - 1; i >= 0; i--) {
@@ -277,6 +289,120 @@ public class GamePanel extends JPanel implements Runnable{
         }
     }
 
+    private void updateMatchTimer() {
+        if (matchSecondsRemaining <= 0) {
+            endMatchByTime();
+            return;
+        }
+
+        secondTickCounter++;
+        if (secondTickCounter >= FPS) {
+            secondTickCounter = 0;
+            matchSecondsRemaining = Math.max(0, matchSecondsRemaining - 1);
+            if (matchSecondsRemaining == 0) {
+                endMatchByTime();
+            }
+        }
+    }
+
+    private void endMatchByTime() {
+        if (gameEnded) return;
+        gameEnded = true;
+
+        int bestHealth = -1;
+        Tank bestTank = null;
+        boolean tie = false;
+
+        for (Tank t : tankList) {
+            int hp = t.getCurrentHealth();
+            if (hp > bestHealth) {
+                bestHealth = hp;
+                bestTank = t;
+                tie = false;
+            } else if (hp == bestHealth) {
+                tie = true;
+            }
+        }
+
+        String text;
+        if (bestTank == null) text = "DRAW";
+        else if (tie) text = "DRAW";
+        else text = "PLAYER " + bestTank.getPlayerNum() + " WIN";
+
+        SwingUtilities.invokeLater(() -> showWinnerOverlay(text));
+    }
+
+    private void checkForWinner() {
+        // When only one tank remains, declare it as winner; if none remain, it's a draw.
+        if (tankList.size() > 1) {
+            return;
+        }
+        gameEnded = true;
+
+        Tank winner = tankList.isEmpty() ? null : tankList.get(0);
+        String text = (winner == null) ? "DRAW" : ("PLAYER " + winner.getPlayerNum() + " WIN");
+
+        SwingUtilities.invokeLater(() -> showWinnerOverlay(text));
+    }
+
+    private void showWinnerOverlay(String winnerText) {
+        // stop loop and clear pause overlay if present
+        stopGameThread();
+        paused = false;
+        if (pauseOverlay != null && pauseOverlay.getParent() instanceof JLayeredPane) {
+            JLayeredPane lp = (JLayeredPane) pauseOverlay.getParent();
+            lp.remove(pauseOverlay);
+            lp.revalidate();
+            lp.repaint();
+        }
+
+        java.awt.Window win = SwingUtilities.getWindowAncestor(this);
+        if (!(win instanceof JFrame)) {
+            return;
+        }
+        JFrame frame = (JFrame) win;
+
+        if (winnerOverlay == null) {
+            winnerOverlay = new WinnerOverlay();
+            winnerOverlay.setWinnerListener(new WinnerOverlay.WinnerListener() {
+                @Override
+                public void onPlayAgain() {
+                    frame.dispose();
+                    GameConfig newConfig = new GameConfig();
+                    newConfig.playerCount = config.playerCount;
+                    newConfig.computerCount = config.computerCount;
+                    newConfig.mapPath = config.mapPath;
+                    newConfig.gameMode = config.gameMode;
+                    newConfig.p1Tank = config.p1Tank;
+                    newConfig.p2Tank = config.p2Tank;
+                    newConfig.startImmediately = true;
+                    new GameWindow(newConfig);
+                }
+
+                @Override
+                public void onMenu() {
+                    frame.dispose();
+                    GameConfig menuConfig = new GameConfig();
+                    menuConfig.startImmediately = false;
+                    new GameWindow(menuConfig);
+                }
+            });
+        }
+
+        winnerOverlay.setWinnerText(winnerText);
+
+        JLayeredPane lp = frame.getLayeredPane();
+        if (winnerOverlay.getParent() != lp) {
+            lp.add(winnerOverlay, JLayeredPane.POPUP_LAYER);
+        }
+        Dimension sz = lp.getSize();
+        winnerOverlay.setBounds(0, 0, sz.width, sz.height);
+        winnerOverlay.layoutButtons();
+        winnerOverlay.runWinner(true);
+        lp.revalidate();
+        lp.repaint();
+    }
+
     @Override
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -305,9 +431,58 @@ public class GamePanel extends JPanel implements Runnable{
             b.draw(g2);
         }
 
+        drawMatchTimer(g2);
+
         // pause overlay is a child component (Pause) and will draw itself when visible
 
         g2.dispose();
+    }
+
+    private void drawMatchTimer(Graphics2D g2) {
+        // Draw centered top HUD timer.
+        int sec = Math.max(0, matchSecondsRemaining);
+        int mm = sec / 60;
+        int ss = sec % 60;
+        String text = String.format("%02d:%02d", mm, ss);
+
+        Graphics2D g = (Graphics2D) g2.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        Font font = new Font("Monospaced", Font.BOLD, 24);
+        g.setFont(font);
+        FontMetrics fm = g.getFontMetrics();
+        int padX = 16;
+        int padY = 10;
+        int boxW = fm.stringWidth(text) + padX * 2;
+        int boxH = fm.getHeight() + padY * 2;
+
+        int x = (getWidth() - boxW) / 2;
+        int y = 10;
+
+        Color accent = new Color(0, 255, 200);
+        Color bg = new Color(10, 10, 10, 190);
+
+        g.setColor(bg);
+        g.fillRoundRect(x, y, boxW, boxH, 18, 18);
+        g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 170));
+        g.setStroke(new BasicStroke(2f));
+        g.drawRoundRect(x, y, boxW, boxH, 18, 18);
+
+        // urgency coloring
+        if (sec <= 10) {
+            double time = System.currentTimeMillis() / 160.0;
+            float pulse = (float) ((Math.sin(time) + 1.0) / 2.0);
+            int a = (int) (140 + pulse * 115);
+            g.setColor(new Color(255, 69, 0, a));
+        } else {
+            g.setColor(Color.WHITE);
+        }
+
+        int tx = x + (boxW - fm.stringWidth(text)) / 2;
+        int ty = y + padY + fm.getAscent();
+        g.drawString(text, tx, ty);
+
+        g.dispose();
     }
 
     private void togglePause() {
