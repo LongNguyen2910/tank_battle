@@ -66,7 +66,16 @@ public class CollisionChecker {
         tile.Tile t2 = gp.getTileManager().getTile(tileId2);
 
         if (entity instanceof Bullet) {
-            if ((t1 != null && t1.isBulletCollision()) || (t2 != null && t2.isBulletCollision())) {
+            if (t1 != null && t1.isBulletCollision()) {
+                if (t1.isBreakable()) {
+                    gp.getTileManager().setTileAt(col1, row1, 0);
+                }
+                entity.setCollisionOn(true);
+            }
+            if (t2 != null && t2.isBulletCollision()) {
+                if (t2.isBreakable()) {
+                    gp.getTileManager().setTileAt(col2, row2, 0);
+                }
                 entity.setCollisionOn(true);
             }
         } else {
