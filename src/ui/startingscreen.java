@@ -83,7 +83,7 @@ public class startingscreen extends JPanel {
     }
 
     public static void main(String[] args) {
-        JFrame frame = new JFrame("Tank Battle - Starting Screen");
+        JFrame frame = new JFrame("Tank Battle");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.add(new startingscreen());
         frame.pack();
