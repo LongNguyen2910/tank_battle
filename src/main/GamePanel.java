@@ -2,10 +2,12 @@ package main;
 
 import entity.*;
 import tile.TileManager;
-
+import ui.startingscreen;
+import ui.Pause;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyEvent;
+import java.awt.event.*;
+import java.awt.geom.*;
 import java.util.ArrayList;
 
 public class GamePanel extends JPanel implements Runnable{
@@ -19,6 +21,8 @@ public class GamePanel extends JPanel implements Runnable{
 
     private Thread gameThread;
     private final KeyHandler keyH = new KeyHandler();
+    private boolean paused = false;
+    private Pause pauseOverlay;
 
     private final TileManager tileM = new TileManager(this);
 
@@ -46,7 +50,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     public final int xSpawnPlayer4 = Config.X_SPAWN_PLAYER_4;
     public final int ySpawnPlayer4 = Config.Y_SPAWN_PLAYER_4;
-
+    
     private final ArrayList<Tank> tankList = new ArrayList<>();
 
     public ArrayList<SmokeParticle> particleList = new ArrayList<>();
@@ -60,7 +64,88 @@ public class GamePanel extends JPanel implements Runnable{
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
         this.setFocusable(true);
-        
+        this.setLayout(new BorderLayout());
+
+        // set up key binding for pause toggle (press P or ESC)
+        InputMap im = this.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap am = this.getActionMap();
+        im.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_P, 0), "togglePause");
+        im.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "togglePause");
+        am.put("togglePause", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                togglePause();
+            }
+        });
+
+        // create pause overlay and hide it initially; wire button callbacks
+        pauseOverlay = new Pause();
+        pauseOverlay.setPauseListener(new Pause.PauseListener() {
+            @Override
+            public void onResume() {
+                // act like pressing resume
+                if (paused) togglePause();
+            }
+
+            @Override
+            public void onSetting() {
+                // Ensure game remains paused and overlay stays visible while settings dialog is open
+                paused = true;
+                java.awt.Window win = SwingUtilities.getWindowAncestor(GamePanel.this);
+                javax.swing.JFrame parent = null;
+                if (win instanceof javax.swing.JFrame) parent = (javax.swing.JFrame) win;
+                // Ensure overlay is in the layered pane and sized
+                if (parent != null) {
+                    JLayeredPane lp = parent.getLayeredPane();
+                    if (pauseOverlay.getParent() != lp) lp.add(pauseOverlay, JLayeredPane.POPUP_LAYER);
+                    Dimension sz = lp.getSize();
+                    pauseOverlay.setBounds(0, 0, sz.width, sz.height);
+                    pauseOverlay.layoutButtons();
+                    pauseOverlay.setVisible(true);
+                    lp.revalidate(); lp.repaint();
+                }
+
+                // open modal settings dialog; when it closes we keep paused=true and overlay visible
+                new ui.SettingsDialog(parent).setVisible(true);
+                // restore overlay focus
+                if (pauseOverlay.getParent() instanceof JLayeredPane) {
+                    pauseOverlay.requestFocusInWindow();
+                }
+            }
+
+            @Override
+            public void onQuit() {
+                // return to main menu in the same window
+                java.awt.Window win = SwingUtilities.getWindowAncestor(GamePanel.this);
+                if (win instanceof javax.swing.JFrame) {
+                    javax.swing.JFrame frame = (javax.swing.JFrame) win;
+                    // remove overlay if present
+                    if (pauseOverlay.getParent() instanceof JLayeredPane) {
+                        JLayeredPane lp = (JLayeredPane) pauseOverlay.getParent();
+                        lp.remove(pauseOverlay);
+                        lp.revalidate(); lp.repaint();
+                    }
+                    // stop current game thread
+                    stopGameThread();
+
+                    // create fresh GamePanel with main menu
+                    startingscreen menu = new startingscreen();
+                    GamePanel gp = new GamePanel(new GameConfig());
+                    gp.setLayout(new BorderLayout());
+                    gp.add(menu, BorderLayout.CENTER);
+
+                    frame.getContentPane().removeAll();
+                    frame.add(gp);
+                    frame.pack();
+                    frame.setLocationRelativeTo(null);
+                    gp.startGameThread();
+                    menu.requestFocusInWindow();
+                }
+            }
+        });
+        pauseOverlay.setVisible(false);
+        // do not add to this panel's layout; we'll place the overlay on the
+        // root layered pane when pausing so it reliably appears above everything        
         tileM.loadMap(config.mapPath);
         playerInit();
     }
@@ -68,6 +153,15 @@ public class GamePanel extends JPanel implements Runnable{
     public void startGameThread() {
         gameThread = new Thread(this);
         gameThread.start();
+    }
+
+    /**
+     * Stop the game thread loop. This will cause the run loop to exit.
+     */
+    public void stopGameThread() {
+        Thread t = gameThread;
+        gameThread = null;
+        if (t != null) t.interrupt();
     }
 
     @Override
@@ -82,8 +176,10 @@ public class GamePanel extends JPanel implements Runnable{
             delta += (currentTime - lastTime) / drawInterval;
             lastTime = currentTime;
 
+            // pause toggle is handled via key bindings (P and ESC) so no polling here
+
             if (delta >= 1) {
-                update();
+                if (!paused) update();
                 repaint();
                 delta--;
             }
@@ -170,8 +266,47 @@ public class GamePanel extends JPanel implements Runnable{
         for (Bullet b : bulletList) {
             b.draw(g2);
         }
+
+        // pause overlay is a child component (Pause) and will draw itself when visible
+
         g2.dispose();
     }
+
+    private void togglePause() {
+        paused = !paused;
+        if (pauseOverlay != null) {
+            pauseOverlay.runPause(paused);
+            java.awt.Window win = SwingUtilities.getWindowAncestor(this);
+            if (paused) {
+                if (win instanceof javax.swing.JFrame) {
+                    javax.swing.JFrame frame = (javax.swing.JFrame) win;
+                    JLayeredPane lp = frame.getLayeredPane();
+                    // add overlay to layered pane so it is above everything
+                    if (pauseOverlay.getParent() != lp) {
+                        lp.add(pauseOverlay, JLayeredPane.POPUP_LAYER);
+                    }
+                    Dimension sz = lp.getSize();
+                    pauseOverlay.setBounds(0, 0, sz.width, sz.height);
+                    // position buttons after bounds set
+                    pauseOverlay.layoutButtons();
+                    pauseOverlay.setVisible(true);
+                    pauseOverlay.requestFocusInWindow();
+                    lp.revalidate();
+                    lp.repaint();
+                }
+            } else {
+                // remove overlay from layered pane
+                if (pauseOverlay.getParent() instanceof JLayeredPane) {
+                    JLayeredPane lp = (JLayeredPane) pauseOverlay.getParent();
+                    lp.remove(pauseOverlay);
+                    lp.revalidate();
+                    lp.repaint();
+                }
+                this.requestFocusInWindow();
+            }
+        }
+    }
+    
 
     public void playerInit() {
         if (config.playerCount >= 1) {
