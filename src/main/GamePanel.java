@@ -4,6 +4,7 @@ import entity.*;
 import tile.TileManager;
 import ui.startingscreen;
 import ui.Pause;
+import ui.WinnerScreen;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -56,6 +57,7 @@ public class GamePanel extends JPanel implements Runnable{
     public ArrayList<SmokeParticle> particleList = new ArrayList<>();
 
     private GameConfig config;
+    private boolean gameEnded = false;
 
     public GamePanel(GameConfig config) {
         this.config = config;
@@ -197,6 +199,11 @@ public class GamePanel extends JPanel implements Runnable{
                 tankList.remove(i);
             }
         }
+
+        if (!gameEnded) {
+            checkForWinner();
+        }
+
         for (int i = bulletList.size() - 1; i >= 0; i--) {
             Bullet b = bulletList.get(i);
             if (b.isAlive()) {
@@ -243,6 +250,66 @@ public class GamePanel extends JPanel implements Runnable{
                 particleList.remove(i);
             }
         }
+    }
+
+    private void checkForWinner() {
+        // When only one tank remains, declare it as winner; if none remain, it's a draw.
+        if (tankList.size() > 1) {
+            return;
+        }
+        gameEnded = true;
+
+        Tank winner = tankList.isEmpty() ? null : tankList.get(0);
+        String text = (winner == null) ? "DRAW" : ("PLAYER " + winner.getPlayerNum() + " WIN");
+
+        SwingUtilities.invokeLater(() -> showWinnerScreen(text));
+    }
+
+    private void showWinnerScreen(String winnerText) {
+        // stop loop and clear pause overlay if present
+        stopGameThread();
+        paused = false;
+        if (pauseOverlay != null && pauseOverlay.getParent() instanceof JLayeredPane) {
+            JLayeredPane lp = (JLayeredPane) pauseOverlay.getParent();
+            lp.remove(pauseOverlay);
+            lp.revalidate();
+            lp.repaint();
+        }
+
+        java.awt.Window win = SwingUtilities.getWindowAncestor(this);
+        if (!(win instanceof JFrame)) {
+            return;
+        }
+        JFrame frame = (JFrame) win;
+
+        Runnable onPlayAgain = () -> {
+            frame.dispose();
+            GameConfig newConfig = new GameConfig();
+            newConfig.playerCount = config.playerCount;
+            newConfig.computerCount = config.computerCount;
+            newConfig.mapPath = config.mapPath;
+            newConfig.gameMode = config.gameMode;
+            newConfig.p1Tank = config.p1Tank;
+            newConfig.p2Tank = config.p2Tank;
+            newConfig.startImmediately = true;
+            new GameWindow(newConfig);
+        };
+
+        Runnable onMenu = () -> {
+            frame.dispose();
+            GameConfig menuConfig = new GameConfig();
+            menuConfig.startImmediately = false;
+            new GameWindow(menuConfig);
+        };
+
+        WinnerScreen screen = new WinnerScreen(winnerText, onPlayAgain, onMenu);
+        frame.getContentPane().removeAll();
+        frame.add(screen);
+        frame.pack();
+        frame.setLocationRelativeTo(null);
+        screen.requestFocusInWindow();
+        frame.revalidate();
+        frame.repaint();
     }
 
     @Override
