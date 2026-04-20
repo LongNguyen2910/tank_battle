@@ -102,6 +102,8 @@ public class Tank extends GameObject {
 
         setDefaultValues();
         getSprite();
+        skillSlots[0] = SkillType.BOMB;
+        skillSlots[1] = SkillType.TRAP;
     }
 
     public void setDefaultValues() {

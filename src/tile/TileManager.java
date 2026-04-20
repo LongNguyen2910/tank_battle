@@ -65,6 +65,9 @@ public class TileManager {
         g2.drawLine(5, 10, 20, 10);
         g2.drawLine(25, 20, 40, 20);
         g2.dispose();
+
+        //new
+
     }
 
     public void setTileAt(int col, int row, int tileId) {
