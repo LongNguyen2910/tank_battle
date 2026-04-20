@@ -9,18 +9,13 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 
 public class GamePanel extends JPanel implements Runnable{
-    final int originalTileSize = 32;
-    public final int scale = 2;
+    public final int tileSize = Config.TILE_SIZE;
+    public final int screenWidth = Config.SCREEN_WIDTH;
+    public final int screenHeight = Config.SCREEN_HEIGHT;
+    public final int maxScreenCol = Config.MAX_SCREEN_COL;
+    public final int maxScreenRow = Config.MAX_SCREEN_ROW;
 
-    public final int tileSize = originalTileSize * scale;
-
-    public final int maxScreenCol = 16;
-    public final int maxScreenRow = 12;
-
-    public final int screenWidth = tileSize * maxScreenCol;
-    public final int screenHeight = tileSize * maxScreenRow;
-
-    private final int FPS = 60;
+    private final int FPS = Config.FPS;
 
     private Thread gameThread;
     private final KeyHandler keyH = new KeyHandler();
@@ -32,30 +27,30 @@ public class GamePanel extends JPanel implements Runnable{
     private final ArrayList<Bullet> bulletList = new ArrayList<>();
     private final ArrayList<SlowZone> slowZoneList = new ArrayList<>();
 
-    private final KeySetting keySettingPlayer1 = new KeySetting(KeyEvent.VK_W, KeyEvent.VK_D,
-            KeyEvent.VK_S, KeyEvent.VK_A, KeyEvent.VK_K,KeyEvent.VK_J, KeyEvent.VK_U, KeyEvent.VK_I);
+    private final KeySetting keySettingPlayer1 = new KeySetting(Config.P1_UP, Config.P1_RIGHT,
+            Config.P1_DOWN, Config.P1_LEFT, Config.P1_SHOOT, Config.P1_DASH, Config.P1_SKILL1, Config.P1_SKILL2);
 
-    private final KeySetting keySettingPlayer2 = new KeySetting(KeyEvent.VK_UP, KeyEvent.VK_RIGHT,
-            KeyEvent.VK_DOWN, KeyEvent.VK_LEFT, KeyEvent.VK_NUMPAD2, KeyEvent.VK_M, KeyEvent.VK_NUMPAD4, KeyEvent.VK_NUMPAD5);
+    private final KeySetting keySettingPlayer2 = new KeySetting(Config.P2_UP, Config.P2_RIGHT,
+            Config.P2_DOWN, Config.P2_LEFT, Config.P2_SHOOT, Config.P2_DASH, Config.P2_SKILL1, Config.P2_SKILL2);
 
-    public final int xSpawnPlayer1 = 2 * tileSize + 10;
-    public final int ySpawnPlayer1 = screenHeight - 2 * tileSize - 10;
+    public final int xSpawnPlayer1 = Config.X_SPAWN_PLAYER_1;
+    public final int ySpawnPlayer1 = Config.Y_SPAWN_PLAYER_1;
 
-    public final int xSpawnPlayer2 = screenWidth - 3 * tileSize;
-    public final int ySpawnPlayer2 = screenHeight - 2 * tileSize - 10;
+    public final int xSpawnPlayer2 = Config.X_SPAWN_PLAYER_2;
+    public final int ySpawnPlayer2 = Config.Y_SPAWN_PLAYER_2;
 
-    public final int xSpawnPlayer3 = 2 * tileSize;
-    public final int ySpawnPlayer3 = 2 * tileSize;
+    public final int xSpawnPlayer3 = Config.X_SPAWN_PLAYER_3;
+    public final int ySpawnPlayer3 = Config.Y_SPAWN_PLAYER_3;
 
-    public final int xSpawnPlayer4 = screenWidth - 3 * tileSize;
-    public final int ySpawnPlayer4 = 2 * tileSize;
+    public final int xSpawnPlayer4 = Config.X_SPAWN_PLAYER_4;
+    public final int ySpawnPlayer4 = Config.Y_SPAWN_PLAYER_4;
 
     private final ArrayList<Tank> tankList = new ArrayList<>();
 
     public ArrayList<SmokeParticle> particleList = new ArrayList<>();
 
     public GamePanel() {
-        this.setPreferredSize(new Dimension(screenWidth, screenHeight));
+        this.setPreferredSize(new Dimension(Config.SCREEN_WIDTH, Config.SCREEN_HEIGHT));
         this.setBackground(Color.BLACK);
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
@@ -152,7 +147,7 @@ public class GamePanel extends JPanel implements Runnable{
     public void playerInit() {
         tankList.add(new Tank(this, keyH, TankType.NORMAL, 1, keySettingPlayer1));
         tankList.add(new Tank(this, keyH, TankType.HEAVY, 2, keySettingPlayer1));
-        tankList.add(new Tank(this, keyH, TankType.SCOUT, 3, keySettingPlayer2));
+        tankList.add(new Tank(this, keyH, TankType.SCOUT, 3, keySettingPlayer1));
         tankList.add(new Tank(this, keyH, TankType.MODERN, 4, keySettingPlayer1));
     }
 
@@ -170,6 +165,14 @@ public class GamePanel extends JPanel implements Runnable{
 
     public ArrayList<Tank> getTankList() {
         return tankList;
+    }
+
+    public KeySetting getKeySettingPlayer1() {
+        return keySettingPlayer1;
+    }
+
+    public KeySetting getKeySettingPlayer2() {
+        return keySettingPlayer2;
     }
 
     public void addBullet(Bullet bullet) {

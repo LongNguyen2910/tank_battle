@@ -21,37 +21,37 @@ public class CollisionChecker {
         int entityTopY = solidArea.y;
         int entityBottomY = solidArea.y + solidArea.height - 1;
 
-        int entityLeftCol = (entityLeftX / gp.tileSize);
-        int entityRightCol = (entityRightX / gp.tileSize);
-        int entityTopRow = (entityTopY / gp.tileSize);
-        int entityBottomRow = (entityBottomY / gp.tileSize);
+        int entityLeftCol = (entityLeftX / Config.TILE_SIZE);
+        int entityRightCol = (entityRightX / Config.TILE_SIZE);
+        int entityTopRow = (entityTopY / Config.TILE_SIZE);
+        int entityBottomRow = (entityBottomY / Config.TILE_SIZE);
 
         Direction direction = entity.getDirection();
 
         switch (direction) {
             case UP:
-                entityTopRow = (entityTopY - entity.getSpeed()) / gp.tileSize;
+                entityTopRow = (entityTopY - entity.getSpeed()) / Config.TILE_SIZE;
                 if (gp.getTileManager().isCollisionAt(entityLeftCol, entityTopRow)
                         || gp.getTileManager().isCollisionAt(entityRightCol, entityTopRow)) {
                     entity.setCollisionOn(true);
                 }
                 break;
             case DOWN:
-                entityBottomRow = (entityBottomY + entity.getSpeed()) / gp.tileSize;
+                entityBottomRow = (entityBottomY + entity.getSpeed()) / Config.TILE_SIZE;
                 if (gp.getTileManager().isCollisionAt(entityLeftCol, entityBottomRow)
                         || gp.getTileManager().isCollisionAt(entityRightCol, entityBottomRow)) {
                     entity.setCollisionOn(true);
                 }
                 break;
             case LEFT:
-                entityLeftCol = (entityLeftX - entity.getSpeed()) / gp.tileSize;
+                entityLeftCol = (entityLeftX - entity.getSpeed()) / Config.TILE_SIZE;
                 if (gp.getTileManager().isCollisionAt(entityLeftCol, entityTopRow)
                         || gp.getTileManager().isCollisionAt(entityLeftCol, entityBottomRow)) {
                     entity.setCollisionOn(true);
                 }
                 break;
             case RIGHT:
-                entityRightCol = (entityRightX + entity.getSpeed()) / gp.tileSize;
+                entityRightCol = (entityRightX + entity.getSpeed()) / Config.TILE_SIZE;
                 if (gp.getTileManager().isCollisionAt(entityRightCol, entityTopRow)
                         || gp.getTileManager().isCollisionAt(entityRightCol, entityBottomRow)) {
                     entity.setCollisionOn(true);
