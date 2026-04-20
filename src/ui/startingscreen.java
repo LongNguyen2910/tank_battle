@@ -1,7 +1,7 @@
 package ui;
 
 import main.Config;
-import main.GameWindow;
+import main.GamePanel;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -12,17 +12,14 @@ import java.util.List;
 import java.util.Random;
 import javax.imageio.ImageIO;
 
-public class startingscreen extends JFrame {
+public class startingscreen extends JPanel {
 
     private List<AnimatedTacticalButton> menuButtons = new ArrayList<>();
     private int currentIndex = 0;
 
     public startingscreen() {
-        setTitle("Tank battle");
-        setSize(Config.MENU_WIDTH, Config.MENU_HEIGHT);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
-        setResizable(false);
+        this.setPreferredSize(new Dimension(Config.MENU_WIDTH, Config.MENU_HEIGHT));
+        this.setLayout(new BorderLayout());
 
         AnimatedBackgroundPanel mainPanel = new AnimatedBackgroundPanel("/ui/tank.jpg");
         mainPanel.setLayout(new GridBagLayout());
@@ -82,7 +79,7 @@ public class startingscreen extends JFrame {
 
         setupKeyBindings(mainPanel);
 
-        add(mainPanel);
+        this.add(mainPanel, BorderLayout.CENTER);
     }
 
     private void setupKeyBindings(JPanel panel) {
@@ -118,10 +115,32 @@ public class startingscreen extends JFrame {
                 if (selectedName.equals("Quit Game")) {
                     System.exit(0);
                 } else if (selectedName.equals("Start")) {
-                    dispose(); // Close menu
-                    new GameWindow(); // Start game
+                    // If this menu is embedded inside a GamePanel, just remove the menu to reveal the game.
+                    Container parent = startingscreen.this.getParent();
+                    if (parent instanceof GamePanel) {
+                        GamePanel gpParent = (GamePanel) parent;
+                        gpParent.remove(startingscreen.this);
+                        gpParent.revalidate();
+                        gpParent.repaint();
+                        gpParent.requestFocusInWindow();
+                    } else {
+                        // Otherwise (standalone), replace the window content with a new GamePanel and start it.
+                        java.awt.Window win = SwingUtilities.getWindowAncestor(startingscreen.this);
+                        if (win instanceof javax.swing.JFrame) {
+                            javax.swing.JFrame frame = (javax.swing.JFrame) win;
+                            frame.getContentPane().removeAll();
+                            GamePanel gp = new GamePanel();
+                            frame.add(gp);
+                            frame.pack();
+                            frame.setLocationRelativeTo(null);
+                            gp.startGameThread();
+                        }
+                    }
                 } else if (selectedName.equals("Setting")) {
-                    new SettingsDialog(startingscreen.this).setVisible(true);
+                    java.awt.Window win = SwingUtilities.getWindowAncestor(startingscreen.this);
+                    javax.swing.JFrame parent = null;
+                    if (win instanceof javax.swing.JFrame) parent = (javax.swing.JFrame) win;
+                    new SettingsDialog(parent).setVisible(true);
                 } else {
                     JOptionPane.showMessageDialog(startingscreen.this, "Vừa ấn: " + selectedName);
                 }
@@ -283,12 +302,5 @@ public class startingscreen extends JFrame {
                 green = rand.nextInt(120);
             }
         }
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            startingscreen menu = new startingscreen();
-            menu.setVisible(true);
-        });
     }
 }
