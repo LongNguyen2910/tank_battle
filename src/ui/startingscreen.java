@@ -183,24 +183,24 @@ public class startingscreen extends JPanel {
             shape.lineTo(w - chamfer, h); shape.lineTo(chamfer, h);
             shape.lineTo(0, h - chamfer); shape.lineTo(0, chamfer); shape.closePath();
 
-            int r = (int) (40 + (255 - 40) * hoverProgress);
-            int gr = (int) (40 + (102 - 40) * hoverProgress);
-            int b = (int) (40 + (0 - 40) * hoverProgress);
+            int r = Math.max(0, Math.min(255, (int) (40 + (255 - 40) * hoverProgress)));
+            int gr = Math.max(0, Math.min(255, (int) (40 + (102 - 40) * hoverProgress)));
+            int b = Math.max(0, Math.min(255, (int) (40 + (0 - 40) * hoverProgress)));
 
             g2.setPaint(new GradientPaint(0, 0, new Color(r, gr, b, 200), 0, h, new Color(10, 10, 10, 240)));
             g2.fill(shape);
 
             if (hoverProgress > 0) {
-                g2.setColor(new Color(255, 102, 0, (int)(255 * hoverProgress)));
+                g2.setColor(new Color(255, 102, 0, Math.max(0, Math.min(255, (int)(255 * hoverProgress)))));
                 g2.setStroke(new BasicStroke(3f + (3f * hoverProgress)));
                 g2.draw(shape);
             }
 
-            g2.setColor(new Color(255, 255, 255, (int)(100 + 155 * hoverProgress)));
+            g2.setColor(new Color(255, 255, 255, Math.max(0, Math.min(255, (int)(100 + 155 * hoverProgress)))));
             g2.setStroke(new BasicStroke(2f));
             g2.draw(shape);
 
-            g2.setColor(new Color(0, 255, 200, (int)(255 * hoverProgress)));
+            g2.setColor(new Color(0, 255, 200, Math.max(0, Math.min(255, (int)(255 * hoverProgress)))));
             g2.fillRect(5, h/2 - 10, 4, 20);
             g2.fillRect(w - 9, h/2 - 10, 4, 20);
 
@@ -263,7 +263,7 @@ public class startingscreen extends JPanel {
 
             for (Particle p : particles) {
                 if (p.alpha > 0) {
-                    g2.setColor(new Color(255, p.green, 0, p.alpha));
+                    g2.setColor(new Color(255, Math.max(0, Math.min(255, p.green)), 0, Math.max(0, Math.min(255, p.alpha))));
                     g2.fillOval((int)p.x, (int)p.y, p.size, p.size);
                 }
             }

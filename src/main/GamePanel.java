@@ -310,16 +310,20 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void playerInit() {
         if (config.playerCount >= 1) {
-            tankList.add(new Tank(this, keyH, TankType.HEAVY, 1, keySettingPlayer1));
+            tankList.add(new Tank(this, keyH, config.p1Tank, 1, keySettingPlayer1));
         }
         if (config.playerCount >= 2) {
-            tankList.add(new Tank(this, keyH, TankType.NORMAL, 2, keySettingPlayer2));
+            tankList.add(new Tank(this, keyH, config.p2Tank, 2, keySettingPlayer2));
         }
+        
+        TankType[] availableTanks = TankType.values();
+        java.util.Random rand = new java.util.Random();
         
         for (int i = 0; i < config.computerCount; i++) {
             int pNum = config.playerCount + i + 1;
-            // Use dummy keys for computers for now
-            tankList.add(new Tank(this, keyH, TankType.NORMAL, pNum, new KeySetting(0,0,0,0,0,0,0,0)));
+            // Bot chọn ngẫu nhiên
+            TankType randomType = availableTanks[rand.nextInt(availableTanks.length)];
+            tankList.add(new Tank(this, keyH, randomType, pNum, new KeySetting(0,0,0,0,0,0,0,0)));
         }
     }
 
