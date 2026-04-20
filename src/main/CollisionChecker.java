@@ -1,6 +1,9 @@
 package main;
 
 import entity.Bullet;
+import entity.BulletType;
+import entity.Bomb;
+import entity.Trap;
 import entity.Direction;
 import entity.GameObject;
 import entity.Tank;
@@ -65,18 +68,28 @@ public class CollisionChecker {
     public void checkHit() {
         for (Tank tank : gp.getTankList()) {
             for (Bullet bullet : gp.getBulletList()) {
+                if (bullet.getOwner() == tank) {
+                    continue;
+                }
                 if (bullet.canDamage() && tank.getSolidArea().intersects(bullet.getSolidArea())) {
                     Rectangle bulletArea = bullet.getSolidArea();
                     int impactCenterX = bulletArea.x + bulletArea.width / 2;
                     int impactCenterY = bulletArea.y + bulletArea.height / 2;
+                    boolean blockedByShield = tank.blockBulletIfPossible(bullet.getDirection(), impactCenterX, impactCenterY);
+                    boolean shieldReducedHit = blockedByShield && bullet.getBulletType() == BulletType.BIG_BULLET;
 
-                    if (tank.blockBulletIfPossible(bullet.getDirection(), impactCenterX, impactCenterY)) {
+                    if (blockedByShield && !shieldReducedHit) {
                         bullet.startImpact();
                         continue;
                     }
 
                     if (tank.canBeDamaged()) {
-                        boolean damageApplied = tank.takeDamage(bullet.getDamage(), bullet.getSolidArea().x, bullet.getSolidArea().y);
+                        int incomingDamage = bullet.getDamage();
+                        if (shieldReducedHit) {
+                            incomingDamage = Math.max(1, (int) Math.ceil(incomingDamage * 0.5));
+                        }
+
+                        boolean damageApplied = tank.takeDamage(incomingDamage, bullet.getSolidArea().x, bullet.getSolidArea().y);
                         if (damageApplied) {
                             switch (bullet.getEffectType()) {
                                 case TOXIC -> tank.applyPoison();
@@ -88,6 +101,44 @@ public class CollisionChecker {
                         bullet.destroyImmediately();
                     }
                     bullet.setAlive(false);
+                }
+            }
+        }
+    }
+
+    public void checkBombHit() {
+        for (Bomb bomb : gp.getBombList()) {
+            if (!bomb.canTrigger()) {
+                continue;
+            }
+
+            for (Tank tank : gp.getTankList()) {
+                if (tank.getState() == Tank.TankState.DYING || tank.getState() == Tank.TankState.DEAD) {
+                    continue;
+                }
+
+                if (bomb.canBeTriggeredBy(tank) && bomb.intersects(tank.getSolidArea())) {
+                    bomb.trigger(tank);
+                    break;
+                }
+            }
+        }
+    }
+
+    public void checkTrapHit() {
+        for (Trap trap : gp.getTrapList()) {
+            if (!trap.canTrigger()) {
+                continue;
+            }
+
+            for (Tank tank : gp.getTankList()) {
+                if (tank.getState() == Tank.TankState.DYING || tank.getState() == Tank.TankState.DEAD) {
+                    continue;
+                }
+
+                if (trap.canBeTriggeredBy(tank) && trap.intersects(tank.getSolidArea())) {
+                    trap.trigger(tank);
+                    break;
                 }
             }
         }

@@ -26,6 +26,8 @@ public class GamePanel extends JPanel implements Runnable{
 
     private final ArrayList<Bullet> bulletList = new ArrayList<>();
     private final ArrayList<SlowZone> slowZoneList = new ArrayList<>();
+    private final ArrayList<Bomb> bombList = new ArrayList<>();
+    private final ArrayList<Trap> trapList = new ArrayList<>();
 
     private final KeySetting keySettingPlayer1 = new KeySetting(Config.P1_UP, Config.P1_RIGHT,
             Config.P1_DOWN, Config.P1_LEFT, Config.P1_SHOOT, Config.P1_DASH, Config.P1_SKILL1, Config.P1_SKILL2);
@@ -100,9 +102,25 @@ public class GamePanel extends JPanel implements Runnable{
             }
         }
         cChecker.checkHit();
+        cChecker.checkBombHit();
+        cChecker.checkTrapHit();
         for (int i = bulletList.size() - 1; i >= 0; i--) {
             if (!bulletList.get(i).isAlive()) {
                 bulletList.remove(i);
+            }
+        }
+        for (int i = bombList.size() - 1; i >= 0; i--) {
+            Bomb bomb = bombList.get(i);
+            bomb.update();
+            if (bomb.isExpired()) {
+                bombList.remove(i);
+            }
+        }
+        for (int i = trapList.size() - 1; i >= 0; i--) {
+            Trap trap = trapList.get(i);
+            trap.update();
+            if (trap.isExpired()) {
+                trapList.remove(i);
             }
         }
         for (int i = slowZoneList.size() - 1; i >= 0; i--) {
@@ -137,6 +155,12 @@ public class GamePanel extends JPanel implements Runnable{
         }
         for (var tank : tankList) {
             tank.draw(g2);
+        }
+        for (Bomb bomb : bombList) {
+            bomb.draw(g2);
+        }
+        for (Trap trap : trapList) {
+            trap.draw(g2);
         }
         for (Bullet b : bulletList) {
             b.draw(g2);
@@ -183,7 +207,23 @@ public class GamePanel extends JPanel implements Runnable{
         slowZoneList.add(slowZone);
     }
 
+    public void addBomb(Bomb bomb) {
+        bombList.add(bomb);
+    }
+
+    public void addTrap(Trap trap) {
+        trapList.add(trap);
+    }
+
     public ArrayList<SlowZone> getSlowZoneList() {
         return slowZoneList;
+    }
+
+    public ArrayList<Bomb> getBombList() {
+        return bombList;
+    }
+
+    public ArrayList<Trap> getTrapList() {
+        return trapList;
     }
 }

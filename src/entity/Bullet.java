@@ -18,7 +18,6 @@ public class Bullet extends GameObject {
 
     private static final int HIT_EFFECT_SPRITE_SIZE = 48;
     private static final int HIT_TICKS_PER_FRAME = 3;
-    private static final int BULLET_SPRITE_SIZE = 16;
 
     private final GamePanel gp;
     private BulletState state = BulletState.FLYING;
@@ -27,6 +26,7 @@ public class Bullet extends GameObject {
     private BufferedImage[] impactFrames = new BufferedImage[0];
     private final BulletType bulletType;
     private final BulletEffectType effectType;
+    private final Tank owner;
 
     public final int bulletScale;
     private int impactTick = 0;
@@ -38,14 +38,23 @@ public class Bullet extends GameObject {
     }
 
     public Bullet(GamePanel gp, int startX, int startY, Direction direction, TankType type, BulletEffectType effectType) {
+        this(gp, startX, startY, direction, type.getBulletType(), effectType, null);
+    }
+
+    public Bullet(GamePanel gp, int startX, int startY, Direction direction, BulletType bulletType, BulletEffectType effectType) {
+        this(gp, startX, startY, direction, bulletType, effectType, null);
+    }
+
+    public Bullet(GamePanel gp, int startX, int startY, Direction direction, BulletType bulletType, BulletEffectType effectType, Tank owner) {
         this.gp = gp;
-        bulletType = type.getBulletType();
+        this.bulletType = bulletType;
         bulletScale = Config.SCALE + 1;
         solidArea = new Rectangle(startX, startY, bulletType.getWidth() * bulletScale, bulletType.getHeight() * bulletScale);
         this.direction = direction;
         this.speed = bulletType.getBulletSpeed();
         this.damage = bulletType.getDamage();
         this.effectType = effectType;
+        this.owner = owner;
         bulletImg = new BufferedImage[4];
         loadBullet();
     }
@@ -54,10 +63,13 @@ public class Bullet extends GameObject {
         BufferedImage img;
         try {
             img = loadImage(bulletType.getFilePath());
-            bulletImg[0] = img.getSubimage(0, 0, BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE);
-            bulletImg[1] = img.getSubimage(0, 16, BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE);
-            bulletImg[2] = img.getSubimage(0, 32, BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE);
-            bulletImg[3] = img.getSubimage(0, 48, BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE);
+            int frameSize = bulletType.getSpriteFrameSize();
+            for (int i = 0; i < bulletImg.length; i++) {
+                int frameY = i * frameSize;
+                if (frameSize <= img.getWidth() && frameY + frameSize <= img.getHeight()) {
+                    bulletImg[i] = img.getSubimage(0, frameY, frameSize, frameSize);
+                }
+            }
             impactFrames = loadEffectFrames("/tanks/bullet_hit.png", HIT_EFFECT_SPRITE_SIZE);
         } catch (IOException e) {
             System.out.println("Error loading bullet's sprite" + e.getMessage());
@@ -180,22 +192,23 @@ public class Bullet extends GameObject {
         }
 
         g2.setColor(Color.YELLOW);
+        int frameSize = bulletType.getSpriteFrameSize();
         switch (direction) {
             case UP:
                 g2.drawImage(bulletImg[0], solidArea.x - bulletType.getyOffset() * bulletScale, solidArea.y - bulletType.getxOffset() * bulletScale,
-                        BULLET_SPRITE_SIZE * bulletScale, BULLET_SPRITE_SIZE * bulletScale, null);
+                        frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
             case RIGHT:
                 g2.drawImage(bulletImg[1], solidArea.x - bulletType.getxOffset() * bulletScale, solidArea.y - bulletType.getyOffset() * bulletScale,
-                        BULLET_SPRITE_SIZE * bulletScale, BULLET_SPRITE_SIZE * bulletScale, null);
+                        frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
             case DOWN:
                 g2.drawImage(bulletImg[2], solidArea.x - bulletType.getyOffset() * bulletScale, solidArea.y - bulletType.getxOffset() * bulletScale,
-                        BULLET_SPRITE_SIZE * bulletScale, BULLET_SPRITE_SIZE * bulletScale, null);
+                        frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
             case LEFT:
                 g2.drawImage(bulletImg[3], solidArea.x - bulletType.getxOffset() * bulletScale, solidArea.y - bulletType.getyOffset() * bulletScale,
-                        BULLET_SPRITE_SIZE * bulletScale, BULLET_SPRITE_SIZE * bulletScale, null);
+                        frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
         }
         g2.setColor(Color.RED);
@@ -261,5 +274,13 @@ public class Bullet extends GameObject {
 
     public BulletEffectType getEffectType() {
         return effectType;
+    }
+
+    public Tank getOwner() {
+        return owner;
+    }
+
+    public BulletType getBulletType() {
+        return bulletType;
     }
 }
