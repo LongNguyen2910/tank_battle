@@ -3,12 +3,12 @@ package main;
 import javax.swing.*;
 
 public class GameWindow extends JFrame {
-    public GameWindow() {
+    public GameWindow(GameConfig config) {
         this.setTitle("Tank Battle");
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         this.setResizable(false);
 
-        GamePanel gamePanel = new GamePanel();
+        GamePanel gamePanel = new GamePanel(config);
         this.add(gamePanel);
         this.pack();
 
@@ -19,6 +19,6 @@ public class GameWindow extends JFrame {
     }
 
     public static void main(String[] args) {
-        new GameWindow();
+        new GameWindow(new GameConfig());
     }
 }

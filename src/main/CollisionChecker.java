@@ -31,34 +31,40 @@ public class CollisionChecker {
         switch (direction) {
             case UP:
                 entityTopRow = (entityTopY - entity.getSpeed()) / Config.TILE_SIZE;
-                if (gp.getTileManager().isCollisionAt(entityLeftCol, entityTopRow)
-                        || gp.getTileManager().isCollisionAt(entityRightCol, entityTopRow)) {
-                    entity.setCollisionOn(true);
-                }
+                checkCollision(entity, entityLeftCol, entityTopRow, entityRightCol, entityTopRow);
                 break;
             case DOWN:
                 entityBottomRow = (entityBottomY + entity.getSpeed()) / Config.TILE_SIZE;
-                if (gp.getTileManager().isCollisionAt(entityLeftCol, entityBottomRow)
-                        || gp.getTileManager().isCollisionAt(entityRightCol, entityBottomRow)) {
-                    entity.setCollisionOn(true);
-                }
+                checkCollision(entity, entityLeftCol, entityBottomRow, entityRightCol, entityBottomRow);
                 break;
             case LEFT:
                 entityLeftCol = (entityLeftX - entity.getSpeed()) / Config.TILE_SIZE;
-                if (gp.getTileManager().isCollisionAt(entityLeftCol, entityTopRow)
-                        || gp.getTileManager().isCollisionAt(entityLeftCol, entityBottomRow)) {
-                    entity.setCollisionOn(true);
-                }
+                checkCollision(entity, entityLeftCol, entityTopRow, entityLeftCol, entityBottomRow);
                 break;
             case RIGHT:
                 entityRightCol = (entityRightX + entity.getSpeed()) / Config.TILE_SIZE;
-                if (gp.getTileManager().isCollisionAt(entityRightCol, entityTopRow)
-                        || gp.getTileManager().isCollisionAt(entityRightCol, entityBottomRow)) {
-                    entity.setCollisionOn(true);
-                }
+                checkCollision(entity, entityRightCol, entityTopRow, entityRightCol, entityBottomRow);
                 break;
             case NONE:
                 break;
+        }
+    }
+
+    private void checkCollision(GameObject entity, int col1, int row1, int col2, int row2) {
+        int tileId1 = gp.getTileManager().getTileIdAt(col1, row1);
+        int tileId2 = gp.getTileManager().getTileIdAt(col2, row2);
+        
+        tile.Tile t1 = gp.getTileManager().getTile(tileId1);
+        tile.Tile t2 = gp.getTileManager().getTile(tileId2);
+
+        if (entity instanceof Bullet) {
+            if ((t1 != null && t1.isBulletCollision()) || (t2 != null && t2.isBulletCollision())) {
+                entity.setCollisionOn(true);
+            }
+        } else {
+            if ((t1 != null && t1.isCollision()) || (t2 != null && t2.isCollision())) {
+                entity.setCollisionOn(true);
+            }
         }
     }
 

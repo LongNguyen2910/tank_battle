@@ -49,12 +49,17 @@ public class GamePanel extends JPanel implements Runnable{
 
     public ArrayList<SmokeParticle> particleList = new ArrayList<>();
 
-    public GamePanel() {
+    private GameConfig config;
+
+    public GamePanel(GameConfig config) {
+        this.config = config;
         this.setPreferredSize(new Dimension(Config.SCREEN_WIDTH, Config.SCREEN_HEIGHT));
         this.setBackground(Color.BLACK);
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
         this.setFocusable(true);
+        
+        tileM.loadMap(config.mapPath);
         playerInit();
     }
 
@@ -145,10 +150,18 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     public void playerInit() {
-        tankList.add(new Tank(this, keyH, TankType.NORMAL, 1, keySettingPlayer1));
-        tankList.add(new Tank(this, keyH, TankType.HEAVY, 2, keySettingPlayer1));
-        tankList.add(new Tank(this, keyH, TankType.SCOUT, 3, keySettingPlayer1));
-        tankList.add(new Tank(this, keyH, TankType.MODERN, 4, keySettingPlayer1));
+        if (config.playerCount >= 1) {
+            tankList.add(new Tank(this, keyH, TankType.NORMAL, 1, keySettingPlayer1));
+        }
+        if (config.playerCount >= 2) {
+            tankList.add(new Tank(this, keyH, TankType.NORMAL, 2, keySettingPlayer2));
+        }
+        
+        for (int i = 0; i < config.computerCount; i++) {
+            int pNum = config.playerCount + i + 1;
+            // Use dummy keys for computers for now
+            tankList.add(new Tank(this, keyH, TankType.NORMAL, pNum, new KeySetting(0,0,0,0,0,0,0,0)));
+        }
     }
 
     public CollisionChecker getCollisionChecker() {

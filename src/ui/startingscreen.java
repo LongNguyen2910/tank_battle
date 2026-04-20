@@ -119,7 +119,7 @@ public class startingscreen extends JFrame {
                     System.exit(0);
                 } else if (selectedName.equals("Start")) {
                     dispose(); // Close menu
-                    new GameWindow(); // Start game
+                    new LobbyScreen().setVisible(true); // Open Lobby
                 } else if (selectedName.equals("Setting")) {
                     new SettingsDialog(startingscreen.this).setVisible(true);
                 } else {
