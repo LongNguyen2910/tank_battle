@@ -115,7 +115,32 @@ public class GamePanel extends JPanel implements Runnable{
 
             @Override
             public void onQuit() {
-                System.exit(0);
+                // return to main menu in the same window
+                java.awt.Window win = SwingUtilities.getWindowAncestor(GamePanel.this);
+                if (win instanceof javax.swing.JFrame) {
+                    javax.swing.JFrame frame = (javax.swing.JFrame) win;
+                    // remove overlay if present
+                    if (pauseOverlay.getParent() instanceof JLayeredPane) {
+                        JLayeredPane lp = (JLayeredPane) pauseOverlay.getParent();
+                        lp.remove(pauseOverlay);
+                        lp.revalidate(); lp.repaint();
+                    }
+                    // stop current game thread
+                    stopGameThread();
+
+                    // create fresh GamePanel with main menu
+                    startingscreen menu = new startingscreen();
+                    GamePanel gp = new GamePanel(new GameConfig());
+                    gp.setLayout(new BorderLayout());
+                    gp.add(menu, BorderLayout.CENTER);
+
+                    frame.getContentPane().removeAll();
+                    frame.add(gp);
+                    frame.pack();
+                    frame.setLocationRelativeTo(null);
+                    gp.startGameThread();
+                    menu.requestFocusInWindow();
+                }
             }
         });
         pauseOverlay.setVisible(false);
@@ -128,6 +153,15 @@ public class GamePanel extends JPanel implements Runnable{
     public void startGameThread() {
         gameThread = new Thread(this);
         gameThread.start();
+    }
+
+    /**
+     * Stop the game thread loop. This will cause the run loop to exit.
+     */
+    public void stopGameThread() {
+        Thread t = gameThread;
+        gameThread = null;
+        if (t != null) t.interrupt();
     }
 
     @Override
