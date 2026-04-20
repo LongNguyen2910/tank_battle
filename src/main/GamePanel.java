@@ -1,6 +1,7 @@
 package main;
 
 import entity.*;
+import item.Item;
 import tile.TileManager;
 import ui.startingscreen;
 import ui.Pause;
@@ -9,6 +10,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
 import java.util.ArrayList;
+import java.util.Random;
 
 public class GamePanel extends JPanel implements Runnable{
     public final int tileSize = Config.TILE_SIZE;
@@ -18,6 +20,8 @@ public class GamePanel extends JPanel implements Runnable{
     public final int maxScreenRow = Config.MAX_SCREEN_ROW;
 
     private final int FPS = Config.FPS;
+    private static final int ITEM_SPAWN_INTERVAL_TICKS = Config.FPS * 2;
+    private static final int ITEM_MAX_ON_MAP = 3;
 
     private Thread gameThread;
     private final KeyHandler keyH = new KeyHandler();
@@ -56,6 +60,10 @@ public class GamePanel extends JPanel implements Runnable{
     public ArrayList<SmokeParticle> particleList = new ArrayList<>();
 
     private GameConfig config;
+
+    public ArrayList<Item> itemList = new ArrayList<>();
+    private final Random random = new Random();
+    private int itemSpawnTick = 0;
 
     public GamePanel(GameConfig config) {
         this.config = config;
@@ -190,6 +198,12 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     public void update() {
+        itemSpawnTick++;
+        if (itemSpawnTick >= ITEM_SPAWN_INTERVAL_TICKS) {
+            itemSpawnTick = 0;
+            trySpawnRandomItem();
+        }
+
         for (int i = tankList.size() - 1; i >= 0; i--) {
             Tank tank = tankList.get(i);
             tank.update();
@@ -197,6 +211,24 @@ public class GamePanel extends JPanel implements Runnable{
                 tankList.remove(i);
             }
         }
+
+        for (Item item : itemList) {
+            for (Tank tank : tankList) {
+                if (tank.getState() == Tank.TankState.DYING || tank.getState() == Tank.TankState.DEAD) {
+                    continue;
+                }
+                item.tryOpen(tank);
+            }
+        }
+
+        for (int i = itemList.size() - 1; i >= 0; i--) {
+            Item item = itemList.get(i);
+            item.update();
+            if (item.isConsumed()) {
+                itemList.remove(i);
+            }
+        }
+
         for (int i = bulletList.size() - 1; i >= 0; i--) {
             Bullet b = bulletList.get(i);
             if (b.isAlive()) {
@@ -253,6 +285,9 @@ public class GamePanel extends JPanel implements Runnable{
         tileM.draw(g2);
         for (SlowZone zone : slowZoneList) {
             zone.draw(g2);
+        }
+        for (Item item : itemList) {
+            item.draw(g2);
         }
         for (SmokeParticle p : particleList) {
             p.draw(g2);
@@ -328,6 +363,51 @@ public class GamePanel extends JPanel implements Runnable{
             TankType randomType = availableTanks[rand.nextInt(availableTanks.length)];
             tankList.add(new Tank(this, keyH, randomType, pNum, new KeySetting(0,0,0,0,0,0,0,0)));
         }
+    }
+
+
+    private void trySpawnRandomItem() {
+        if (itemList.size() >= ITEM_MAX_ON_MAP) {
+            return;
+        }
+
+        for (int attempt = 0; attempt < 40; attempt++) {
+            int col = random.nextInt(maxScreenCol);
+            int row = random.nextInt(maxScreenRow);
+            if (!isValidItemTile(col, row)) {
+                continue;
+            }
+
+            int x = col * tileSize;
+            int y = row * tileSize;
+            Item candidate = new Item(x, y);
+            if (isItemPositionBlocked(candidate)) {
+                continue;
+            }
+
+            itemList.add(candidate);
+            return;
+        }
+    }
+
+    private boolean isValidItemTile(int col, int row) {
+        int tileId = tileM.getTileIdAt(col, row);
+        tile.Tile tile = tileM.getTile(tileId);
+        return tile != null && !tile.isCollision() && !tile.isBulletCollision();
+    }
+
+    private boolean isItemPositionBlocked(Item candidate) {
+        for (Tank tank : tankList) {
+            if (candidate.getSolidArea().intersects(tank.getSolidArea())) {
+                return true;
+            }
+        }
+        for (Item existing : itemList) {
+            if (candidate.getSolidArea().intersects(existing.getSolidArea())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public CollisionChecker getCollisionChecker() {

@@ -28,34 +28,71 @@ public class CollisionChecker {
         int entityTopY = solidArea.y;
         int entityBottomY = solidArea.y + solidArea.height - 1;
 
-        int entityLeftCol = (entityLeftX / Config.TILE_SIZE);
-        int entityRightCol = (entityRightX / Config.TILE_SIZE);
-        int entityTopRow = (entityTopY / Config.TILE_SIZE);
-        int entityBottomRow = (entityBottomY / Config.TILE_SIZE);
+        int entityLeftCol = Math.floorDiv(entityLeftX, Config.TILE_SIZE);
+        int entityRightCol = Math.floorDiv(entityRightX, Config.TILE_SIZE);
+        int entityTopRow = Math.floorDiv(entityTopY, Config.TILE_SIZE);
+        int entityBottomRow = Math.floorDiv(entityBottomY, Config.TILE_SIZE);
 
         Direction direction = entity.getDirection();
         int step = Math.max(1, probeDistance);
 
         switch (direction) {
             case UP:
-                entityTopRow = (entityTopY - step) / Config.TILE_SIZE;
+                entityTopRow = Math.floorDiv(entityTopY - step, Config.TILE_SIZE);
                 checkCollision(entity, entityLeftCol, entityTopRow, entityRightCol, entityTopRow);
                 break;
             case DOWN:
-                entityBottomRow = (entityBottomY + step) / Config.TILE_SIZE;
+                entityBottomRow = Math.floorDiv(entityBottomY + step, Config.TILE_SIZE);
                 checkCollision(entity, entityLeftCol, entityBottomRow, entityRightCol, entityBottomRow);
                 break;
             case LEFT:
-                entityLeftCol = (entityLeftX - step) / Config.TILE_SIZE;
+                entityLeftCol = Math.floorDiv(entityLeftX - step, Config.TILE_SIZE);
                 checkCollision(entity, entityLeftCol, entityTopRow, entityLeftCol, entityBottomRow);
                 break;
             case RIGHT:
-                entityRightCol = (entityRightX + step) / Config.TILE_SIZE;
+                entityRightCol = Math.floorDiv(entityRightX + step, Config.TILE_SIZE);
                 checkCollision(entity, entityRightCol, entityTopRow, entityRightCol, entityBottomRow);
                 break;
             case NONE:
                 break;
         }
+    }
+
+    public boolean willTankCollide(Tank movingTank, Direction direction, int probeDistance) {
+        if (movingTank == null || direction == Direction.NONE) {
+            return false;
+        }
+
+        int step = Math.max(1, probeDistance);
+        Rectangle nextArea = new Rectangle(movingTank.getSolidArea());
+        switch (direction) {
+            case UP -> nextArea.y -= step;
+            case DOWN -> nextArea.y += step;
+            case LEFT -> nextArea.x -= step;
+            case RIGHT -> nextArea.x += step;
+            case NONE -> {
+            }
+        }
+
+        if (nextArea.x < 0 || nextArea.y < 0
+                || nextArea.x + nextArea.width > Config.SCREEN_WIDTH
+                || nextArea.y + nextArea.height > Config.SCREEN_HEIGHT) {
+            return true;
+        }
+
+        for (Tank other : gp.getTankList()) {
+            if (other == movingTank || other.isPendingRemoval()) {
+                continue;
+            }
+            if (other.getState() == Tank.TankState.DYING || other.getState() == Tank.TankState.DEAD) {
+                continue;
+            }
+            if (nextArea.intersects(other.getSolidArea())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void checkCollision(GameObject entity, int col1, int row1, int col2, int row2) {

@@ -102,8 +102,7 @@ public class Tank extends GameObject {
 
         setDefaultValues();
         getSprite();
-        skillSlots[0] = SkillType.BOMB;
-        skillSlots[1] = SkillType.TRAP;
+        refreshSkillSlotIcons();
     }
 
     public void setDefaultValues() {
@@ -346,7 +345,7 @@ public class Tank extends GameObject {
         for (int i = 0; i < totalDistance; i++) {
             collisionOn = false;
             gp.getCollisionChecker().checkTile(this, 1);
-            if (collisionOn) {
+            if (collisionOn || gp.getCollisionChecker().willTankCollide(this, moveDirection, 1)) {
                 break;
             }
             move(moveDirection);
@@ -452,12 +451,59 @@ public class Tank extends GameObject {
         currentTrap = null;
     }
 
+    public boolean grantSkillToFirstEmptySlot(SkillType skill) {
+        if (skill == null || skill == SkillType.NONE) {
+            return false;
+        }
+
+        for (int i = 0; i < skillSlots.length; i++) {
+            if (skillSlots[i] == SkillType.NONE) {
+                skillSlots[i] = skill;
+                refreshSkillSlotIcons();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void refreshSkillSlotIcons() {
+        slotSkill1 = resolveSkillIcon(skillSlots[0]);
+        slotSkill2 = resolveSkillIcon(skillSlots[1]);
+    }
+
+    private BufferedImage resolveSkillIcon(SkillType skill) {
+        String iconPath = switch (skill) {
+            case SHIELD -> "/icon/shied_icon.png";
+            case TOXIC -> "/icon/poison.png";
+            case PHASE_SHOT -> "/icon/piercing.png";
+            case BIG_PHASE_SHOT -> "/icon/big_bullet.png";
+            case SLOW -> "/icon/slow.png";
+            case TRIPLE_SHOT -> "/icon/3shot.png";
+            case TRAP -> "/icon/trap.png";
+            case BOMB -> "/icon/landmine.png";
+            default -> "/ui/inventory.png";
+        };
+
+        try {
+            return loadImage(iconPath);
+        } catch (IOException e) {
+            try {
+                return loadImage("/ui/inventory.png");
+            } catch (IOException ignored) {
+                return null;
+            }
+        }
+    }
+
     private void handleSkillInput(int skillKey, SkillType skill) {
         boolean isPressed = keyH.isPressed(skillKey);
         boolean wasPressed = skillKey == keySetting.getKeySkill1() ? skill1WasPressed : skill2WasPressed;
 
         if (isPressed && !wasPressed) {
-            tryActivateSkill(skillKey, skill);
+            boolean activated = tryActivateSkill(skillKey, skill);
+            if (activated) {
+                consumeSkillFromSlot(skillKey);
+            }
         }
 
         if (skillKey == keySetting.getKeySkill1()) {
@@ -467,22 +513,32 @@ public class Tank extends GameObject {
         }
     }
 
-    private void tryActivateSkill(int skillKey, SkillType skill) {
+    private boolean tryActivateSkill(int skillKey, SkillType skill) {
         if (!keyH.isPressed(skillKey) || skill == SkillType.NONE || currentFuel < skill.getFuelCost()) {
-            return;
+            return false;
         }
 
         if (!canActivateSkill(skill)) {
-            return;
+            return false;
         }
 
         BulletEffectType requestedEffect = getSkillBulletEffect(skill);
         if (requestedEffect != BulletEffectType.NONE && armedBulletEffect == requestedEffect) {
-            return;
+            return false;
         }
 
         currentFuel -= skill.getFuelCost();
         skill.activate(this);
+        return true;
+    }
+
+    private void consumeSkillFromSlot(int skillKey) {
+        if (skillKey == keySetting.getKeySkill1()) {
+            skillSlots[0] = SkillType.NONE;
+        } else if (skillKey == keySetting.getKeySkill2()) {
+            skillSlots[1] = SkillType.NONE;
+        }
+        refreshSkillSlotIcons();
     }
 
     private BulletEffectType getSkillBulletEffect(SkillType skill) {
@@ -684,12 +740,12 @@ public class Tank extends GameObject {
         }
 
         if (state != TankState.DYING) {
-            drawUI(g2);
             drawSlowTrail(g2);
             drawTank(g2);
             drawPoisonEffect(g2);
             drawShieldEffect(g2);
             drawHitEffect(g2);
+            drawUI(g2);
             return;
         }
 
