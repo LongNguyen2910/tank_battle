@@ -4,7 +4,7 @@ import entity.*;
 import tile.TileManager;
 import ui.startingscreen;
 import ui.Pause;
-import ui.WinnerScreen;
+import ui.WinnerOverlay;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -58,6 +58,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     private GameConfig config;
     private boolean gameEnded = false;
+    private WinnerOverlay winnerOverlay;
 
     public GamePanel(GameConfig config) {
         this.config = config;
@@ -262,10 +263,10 @@ public class GamePanel extends JPanel implements Runnable{
         Tank winner = tankList.isEmpty() ? null : tankList.get(0);
         String text = (winner == null) ? "DRAW" : ("PLAYER " + winner.getPlayerNum() + " WIN");
 
-        SwingUtilities.invokeLater(() -> showWinnerScreen(text));
+        SwingUtilities.invokeLater(() -> showWinnerOverlay(text));
     }
 
-    private void showWinnerScreen(String winnerText) {
+    private void showWinnerOverlay(String winnerText) {
         // stop loop and clear pause overlay if present
         stopGameThread();
         paused = false;
@@ -282,34 +283,45 @@ public class GamePanel extends JPanel implements Runnable{
         }
         JFrame frame = (JFrame) win;
 
-        Runnable onPlayAgain = () -> {
-            frame.dispose();
-            GameConfig newConfig = new GameConfig();
-            newConfig.playerCount = config.playerCount;
-            newConfig.computerCount = config.computerCount;
-            newConfig.mapPath = config.mapPath;
-            newConfig.gameMode = config.gameMode;
-            newConfig.p1Tank = config.p1Tank;
-            newConfig.p2Tank = config.p2Tank;
-            newConfig.startImmediately = true;
-            new GameWindow(newConfig);
-        };
+        if (winnerOverlay == null) {
+            winnerOverlay = new WinnerOverlay();
+            winnerOverlay.setWinnerListener(new WinnerOverlay.WinnerListener() {
+                @Override
+                public void onPlayAgain() {
+                    frame.dispose();
+                    GameConfig newConfig = new GameConfig();
+                    newConfig.playerCount = config.playerCount;
+                    newConfig.computerCount = config.computerCount;
+                    newConfig.mapPath = config.mapPath;
+                    newConfig.gameMode = config.gameMode;
+                    newConfig.p1Tank = config.p1Tank;
+                    newConfig.p2Tank = config.p2Tank;
+                    newConfig.startImmediately = true;
+                    new GameWindow(newConfig);
+                }
 
-        Runnable onMenu = () -> {
-            frame.dispose();
-            GameConfig menuConfig = new GameConfig();
-            menuConfig.startImmediately = false;
-            new GameWindow(menuConfig);
-        };
+                @Override
+                public void onMenu() {
+                    frame.dispose();
+                    GameConfig menuConfig = new GameConfig();
+                    menuConfig.startImmediately = false;
+                    new GameWindow(menuConfig);
+                }
+            });
+        }
 
-        WinnerScreen screen = new WinnerScreen(winnerText, onPlayAgain, onMenu);
-        frame.getContentPane().removeAll();
-        frame.add(screen);
-        frame.pack();
-        frame.setLocationRelativeTo(null);
-        screen.requestFocusInWindow();
-        frame.revalidate();
-        frame.repaint();
+        winnerOverlay.setWinnerText(winnerText);
+
+        JLayeredPane lp = frame.getLayeredPane();
+        if (winnerOverlay.getParent() != lp) {
+            lp.add(winnerOverlay, JLayeredPane.POPUP_LAYER);
+        }
+        Dimension sz = lp.getSize();
+        winnerOverlay.setBounds(0, 0, sz.width, sz.height);
+        winnerOverlay.layoutButtons();
+        winnerOverlay.runWinner(true);
+        lp.revalidate();
+        lp.repaint();
     }
 
     @Override
