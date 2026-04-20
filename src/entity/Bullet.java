@@ -175,47 +175,6 @@ public class Bullet extends GameObject {
         cacheImpactCenter();
         impactTick = 0;
         state = BulletState.IMPACT;
-
-        // Check if hitting breakable tile
-        checkAndBreakTile();
-    }
-
-    private void checkAndBreakTile() {
-        // Sử dụng offset lớn hơn (nửa ô gạch) để đảm bảo chạm tới ô tường đã gây va chạm
-        int offset = Config.TILE_SIZE / 2;
-        
-        // Kiểm tra 2 điểm ở đầu viên đạn (trái và phải hoặc trên và dưới) để phủ hết độ rộng của đạn
-        int[][] checkPoints = new int[2][2];
-        
-        switch (direction) {
-            case UP:
-                checkPoints[0] = new int[]{solidArea.x, solidArea.y - offset};
-                checkPoints[1] = new int[]{solidArea.x + solidArea.width - 1, solidArea.y - offset};
-                break;
-            case DOWN:
-                checkPoints[0] = new int[]{solidArea.x, solidArea.y + solidArea.height + offset};
-                checkPoints[1] = new int[]{solidArea.x + solidArea.width - 1, solidArea.y + solidArea.height + offset};
-                break;
-            case LEFT:
-                checkPoints[0] = new int[]{solidArea.x - offset, solidArea.y};
-                checkPoints[1] = new int[]{solidArea.x - offset, solidArea.y + solidArea.height - 1};
-                break;
-            case RIGHT:
-                checkPoints[0] = new int[]{solidArea.x + solidArea.width + offset, solidArea.y};
-                checkPoints[1] = new int[]{solidArea.x + solidArea.width + offset, solidArea.y + solidArea.height - 1};
-                break;
-        }
-
-        for (int[] p : checkPoints) {
-            int col = p[0] / Config.TILE_SIZE;
-            int row = p[1] / Config.TILE_SIZE;
-            
-            int tileId = gp.getTileManager().getTileIdAt(col, row);
-            tile.Tile t = gp.getTileManager().getTile(tileId);
-            if (t != null && t.isBreakable()) {
-                gp.getTileManager().setTileAt(col, row, 0); // Phá tường
-            }
-        }
     }
 
     public boolean canDamage() {
