@@ -67,6 +67,8 @@ public class Tank extends GameObject {
     private int invincibilityTick = -1;
     private int deathEffectTick = 0;
 
+    public SkillType[] skillSlots = {SkillType.NONE, SkillType.NONE};
+
     private boolean pendingRemoval = false;
 
     int particleCounter = 0;
@@ -266,8 +268,8 @@ public class Tank extends GameObject {
             }
         }
 
-        handleSkillInput(keySetting.getKeySkill1(), SkillType.SHIELD);
-        handleSkillInput(keySetting.getKeySkill2(), SkillType.SLOW);
+        handleSkillInput(keySetting.getKeySkill1(), skillSlots[0]);
+        handleSkillInput(keySetting.getKeySkill2(), skillSlots[1]);
 
         speed = applySlowDebuff(desiredSpeed);
 
