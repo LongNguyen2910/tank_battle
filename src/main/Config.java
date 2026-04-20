@@ -34,23 +34,23 @@ public class Config {
     public static final int Y_SPAWN_PLAYER_4 = 2 * TILE_SIZE;
 
     // KEY SETTINGS
-    public static final int P1_UP = KeyEvent.VK_W;
-    public static final int P1_DOWN = KeyEvent.VK_S;
-    public static final int P1_LEFT = KeyEvent.VK_A;
-    public static final int P1_RIGHT = KeyEvent.VK_D;
-    public static final int P1_SHOOT = KeyEvent.VK_K;
-    public static final int P1_DASH = KeyEvent.VK_J;
-    public static final int P1_SKILL1 = KeyEvent.VK_U;
-    public static final int P1_SKILL2 = KeyEvent.VK_I;
+    public static int P1_UP = KeyEvent.VK_W;
+    public static int P1_DOWN = KeyEvent.VK_S;
+    public static int P1_LEFT = KeyEvent.VK_A;
+    public static int P1_RIGHT = KeyEvent.VK_D;
+    public static int P1_SHOOT = KeyEvent.VK_J;
+    public static int P1_DASH = KeyEvent.VK_K;
+    public static int P1_SKILL1 = KeyEvent.VK_U;
+    public static int P1_SKILL2 = KeyEvent.VK_I;
 
-    public static final int P2_UP = KeyEvent.VK_UP;
-    public static final int P2_DOWN = KeyEvent.VK_DOWN;
-    public static final int P2_LEFT = KeyEvent.VK_LEFT;
-    public static final int P2_RIGHT = KeyEvent.VK_RIGHT;
-    public static final int P2_SHOOT = KeyEvent.VK_NUMPAD2;
-    public static final int P2_DASH = KeyEvent.VK_M;
-    public static final int P2_SKILL1 = KeyEvent.VK_NUMPAD4;
-    public static final int P2_SKILL2 = KeyEvent.VK_NUMPAD5;
+    public static int P2_UP = KeyEvent.VK_UP;
+    public static int P2_DOWN = KeyEvent.VK_DOWN;
+    public static int P2_LEFT = KeyEvent.VK_LEFT;
+    public static int P2_RIGHT = KeyEvent.VK_RIGHT;
+    public static int P2_SHOOT = KeyEvent.VK_NUMPAD2;
+    public static int P2_DASH = KeyEvent.VK_M;
+    public static int P2_SKILL1 = KeyEvent.VK_NUMPAD4;
+    public static int P2_SKILL2 = KeyEvent.VK_NUMPAD5;
 
     // GAMEPLAY SETTINGS
     public static int MAX_HEALTH = 100;

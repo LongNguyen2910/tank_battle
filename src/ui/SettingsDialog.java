@@ -1,6 +1,7 @@
 package ui;
 
 import main.Config;
+import main.GamePanel;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -10,9 +11,15 @@ public class SettingsDialog extends JDialog {
     private JPanel mainPanel;
     private Color accentColor = new Color(0, 255, 200);
     private Color bgColor = new Color(10, 10, 10, 230);
+    private GamePanel gp;
 
     public SettingsDialog(JFrame parent) {
+        this(parent, null);
+    }
+
+    public SettingsDialog(JFrame parent, GamePanel gp) {
         super(parent, "SETTINGS", true);
+        this.gp = gp;
         setUndecorated(true);
         setSize(600, 500);
         setLocationRelativeTo(parent);
@@ -66,9 +73,21 @@ public class SettingsDialog extends JDialog {
         mainPanel.add(contentPanel, BorderLayout.CENTER);
 
         // Bottom buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel buttonPanel = new JPanel(new BorderLayout());
         buttonPanel.setOpaque(false);
-        buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 30, 40));
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 40, 30, 40));
+
+        JPanel leftButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        leftButtonPanel.setOpaque(false);
+        
+        JButton keybindsBtn = createStyledButton("KEYBINDS");
+        keybindsBtn.addActionListener(e -> {
+            new KeybindsDialog(this, gp).setVisible(true);
+        });
+        leftButtonPanel.add(keybindsBtn);
+
+        JPanel rightButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        rightButtonPanel.setOpaque(false);
 
         JButton saveBtn = createStyledButton("SAVE & APPLY");
         saveBtn.addActionListener(e -> dispose());
@@ -76,8 +95,12 @@ public class SettingsDialog extends JDialog {
         JButton cancelBtn = createStyledButton("CANCEL");
         cancelBtn.addActionListener(e -> dispose());
 
-        buttonPanel.add(cancelBtn);
-        buttonPanel.add(saveBtn);
+        rightButtonPanel.add(cancelBtn);
+        rightButtonPanel.add(saveBtn);
+        
+        buttonPanel.add(leftButtonPanel, BorderLayout.WEST);
+        buttonPanel.add(rightButtonPanel, BorderLayout.EAST);
+        
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         add(mainPanel);

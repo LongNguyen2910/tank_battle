@@ -145,6 +145,14 @@ public class GamePanel extends JPanel implements Runnable{
         return tankList;
     }
 
+    public KeySetting getKeySettingPlayer1() {
+        return keySettingPlayer1;
+    }
+
+    public KeySetting getKeySettingPlayer2() {
+        return keySettingPlayer2;
+    }
+
     public void addBullet(Bullet bullet) {
         bulletList.add(bullet);
     }
