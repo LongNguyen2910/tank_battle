@@ -129,8 +129,10 @@ public class GamePanel extends JPanel implements Runnable{
                     stopGameThread();
 
                     // create fresh GamePanel with main menu
+                    GameConfig menuConfig = new GameConfig();
+                    menuConfig.startImmediately = false;
                     startingscreen menu = new startingscreen();
-                    GamePanel gp = new GamePanel(new GameConfig());
+                    GamePanel gp = new GamePanel(menuConfig);
                     gp.setLayout(new BorderLayout());
                     gp.add(menu, BorderLayout.CENTER);
 
@@ -138,7 +140,8 @@ public class GamePanel extends JPanel implements Runnable{
                     frame.add(gp);
                     frame.pack();
                     frame.setLocationRelativeTo(null);
-                    gp.startGameThread();
+                    // Do not start game thread until start button is pressed
+                    // gp.startGameThread(); 
                     menu.requestFocusInWindow();
                 }
             }

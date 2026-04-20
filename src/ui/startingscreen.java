@@ -82,6 +82,15 @@ public class startingscreen extends JPanel {
         this.add(mainPanel, BorderLayout.CENTER);
     }
 
+    public static void main(String[] args) {
+        JFrame frame = new JFrame("Tank Battle - Starting Screen");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.add(new startingscreen());
+        frame.pack();
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+    }
+
     private void setupKeyBindings(JPanel panel) {
         InputMap im = panel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap am = panel.getActionMap();
@@ -115,17 +124,12 @@ public class startingscreen extends JPanel {
                 if (selectedName.equals("Quit Game")) {
                     System.exit(0);
                 } else if (selectedName.equals("Start")) {
-                    // If this menu is embedded inside a GamePanel, just remove the menu to reveal the game.
-                    Container parent = startingscreen.this.getParent();
-                    if (parent instanceof GamePanel) {
-                        GamePanel gpParent = (GamePanel) parent;
-                        gpParent.remove(startingscreen.this);
-                        gpParent.revalidate();
-                        gpParent.repaint();
-                        gpParent.requestFocusInWindow();
+                    // Dispose the current window and open Lobby
+                    Window win = SwingUtilities.getWindowAncestor(startingscreen.this);
+                    if (win != null) {
+                        win.dispose();
                     }
-//                    dispose(); // Close menu
-                    new LobbyScreen().setVisible(true); // Open Lobby
+                    new LobbyScreen().setVisible(true); 
                 } else if (selectedName.equals("Setting")) {
                     java.awt.Window win = SwingUtilities.getWindowAncestor(startingscreen.this);
                     javax.swing.JFrame parent = null;

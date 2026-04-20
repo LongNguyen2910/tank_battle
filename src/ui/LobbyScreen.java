@@ -193,7 +193,9 @@ public class LobbyScreen extends JFrame {
         AnimatedTacticalButton backBtn = new AnimatedTacticalButton("BACK");
         backBtn.addActionListener(e -> {
             dispose();
-            new startingscreen().setVisible(true);
+            GameConfig backConfig = new GameConfig();
+            backConfig.startImmediately = false;
+            new GameWindow(backConfig);
         });
         footerPanel.add(backBtn);
 

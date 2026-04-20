@@ -69,6 +69,7 @@ public class TankSelectionScreen extends JFrame {
         readyBtn.addActionListener(e -> {
             config.p1Tank = availableTanks[p1Index];
             if (config.playerCount > 1) config.p2Tank = availableTanks[p2Index];
+            config.startImmediately = true; // Start the game directly
             dispose();
             new GameWindow(config);
         });
@@ -107,6 +108,7 @@ public class TankSelectionScreen extends JFrame {
             public void actionPerformed(ActionEvent e) { 
                 config.p1Tank = availableTanks[p1Index];
                 if (config.playerCount > 1) config.p2Tank = availableTanks[p2Index];
+                config.startImmediately = true; // Start the game directly
                 dispose();
                 new GameWindow(config);
             }

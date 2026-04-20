@@ -28,8 +28,8 @@ public class GameWindow extends JFrame {
             menu.requestFocusInWindow();
         } else {
             gamePanel.requestFocusInWindow();
+            gamePanel.startGameThread();
         }
-        gamePanel.startGameThread();
     }
 
     public static void main(String[] args) {
