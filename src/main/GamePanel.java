@@ -59,6 +59,8 @@ public class GamePanel extends JPanel implements Runnable{
     private GameConfig config;
     private boolean gameEnded = false;
     private WinnerOverlay winnerOverlay;
+    private int matchSecondsRemaining;
+    private int secondTickCounter = 0;
 
     public GamePanel(GameConfig config) {
         this.config = config;
@@ -154,6 +156,8 @@ public class GamePanel extends JPanel implements Runnable{
         // root layered pane when pausing so it reliably appears above everything        
         tileM.loadMap(config.mapPath);
         playerInit();
+
+        matchSecondsRemaining = Math.max(0, Config.MATCH_TIME);
     }
 
     public void startGameThread() {
@@ -202,6 +206,7 @@ public class GamePanel extends JPanel implements Runnable{
         }
 
         if (!gameEnded) {
+            updateMatchTimer();
             checkForWinner();
         }
 
@@ -251,6 +256,49 @@ public class GamePanel extends JPanel implements Runnable{
                 particleList.remove(i);
             }
         }
+    }
+
+    private void updateMatchTimer() {
+        if (matchSecondsRemaining <= 0) {
+            endMatchByTime();
+            return;
+        }
+
+        secondTickCounter++;
+        if (secondTickCounter >= FPS) {
+            secondTickCounter = 0;
+            matchSecondsRemaining = Math.max(0, matchSecondsRemaining - 1);
+            if (matchSecondsRemaining == 0) {
+                endMatchByTime();
+            }
+        }
+    }
+
+    private void endMatchByTime() {
+        if (gameEnded) return;
+        gameEnded = true;
+
+        int bestHealth = -1;
+        Tank bestTank = null;
+        boolean tie = false;
+
+        for (Tank t : tankList) {
+            int hp = t.getCurrentHealth();
+            if (hp > bestHealth) {
+                bestHealth = hp;
+                bestTank = t;
+                tie = false;
+            } else if (hp == bestHealth) {
+                tie = true;
+            }
+        }
+
+        String text;
+        if (bestTank == null) text = "DRAW";
+        else if (tie) text = "DRAW";
+        else text = "PLAYER " + bestTank.getPlayerNum() + " WIN";
+
+        SwingUtilities.invokeLater(() -> showWinnerOverlay(text));
     }
 
     private void checkForWinner() {
@@ -349,9 +397,58 @@ public class GamePanel extends JPanel implements Runnable{
             b.draw(g2);
         }
 
+        drawMatchTimer(g2);
+
         // pause overlay is a child component (Pause) and will draw itself when visible
 
         g2.dispose();
+    }
+
+    private void drawMatchTimer(Graphics2D g2) {
+        // Draw centered top HUD timer.
+        int sec = Math.max(0, matchSecondsRemaining);
+        int mm = sec / 60;
+        int ss = sec % 60;
+        String text = String.format("%02d:%02d", mm, ss);
+
+        Graphics2D g = (Graphics2D) g2.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        Font font = new Font("Monospaced", Font.BOLD, 24);
+        g.setFont(font);
+        FontMetrics fm = g.getFontMetrics();
+        int padX = 16;
+        int padY = 10;
+        int boxW = fm.stringWidth(text) + padX * 2;
+        int boxH = fm.getHeight() + padY * 2;
+
+        int x = (getWidth() - boxW) / 2;
+        int y = 10;
+
+        Color accent = new Color(0, 255, 200);
+        Color bg = new Color(10, 10, 10, 190);
+
+        g.setColor(bg);
+        g.fillRoundRect(x, y, boxW, boxH, 18, 18);
+        g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 170));
+        g.setStroke(new BasicStroke(2f));
+        g.drawRoundRect(x, y, boxW, boxH, 18, 18);
+
+        // urgency coloring
+        if (sec <= 10) {
+            double time = System.currentTimeMillis() / 160.0;
+            float pulse = (float) ((Math.sin(time) + 1.0) / 2.0);
+            int a = (int) (140 + pulse * 115);
+            g.setColor(new Color(255, 69, 0, a));
+        } else {
+            g.setColor(Color.WHITE);
+        }
+
+        int tx = x + (boxW - fm.stringWidth(text)) / 2;
+        int ty = y + padY + fm.getAscent();
+        g.drawString(text, tx, ty);
+
+        g.dispose();
     }
 
     private void togglePause() {
