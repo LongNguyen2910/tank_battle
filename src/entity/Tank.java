@@ -484,9 +484,6 @@ public class Tank extends GameObject {
         }
 
         Direction moveDirection = nextDirectionFromPath(selfTile);
-        if (moveDirection == Direction.NONE) {
-            moveDirection = randomDirectionExcluding(Direction.NONE);
-        }
         botMoveDirection = moveDirection;
         intent.moveDirection = botMoveDirection;
 
@@ -621,9 +618,6 @@ public class Tank extends GameObject {
         }
 
         Direction moveDirection = nextDirectionFromPath(selfTile);
-        if (moveDirection == Direction.NONE) {
-            moveDirection = randomDirectionExcluding(Direction.NONE);
-        }
         botMoveDirection = moveDirection;
         intent.moveDirection = botMoveDirection;
     }
