@@ -112,12 +112,12 @@ public class Tank extends GameObject {
     private boolean botTargetIsItem = false;
     private final Map<Tank, Point> observedEnemyTiles = new HashMap<>();
 
-    private static final int MEDIUM_BOT_REPATH_TICKS = 18;
+    private static final int MEDIUM_BOT_REPATH_TICKS = 30;
     private static final int MEDIUM_BOT_SHIELD_RADIUS_TILES = 5;
     private static final float MEDIUM_BOT_SHIELD_HP_RATIO = 0.5f;
     private static final int MEDIUM_BOT_DASH_ITEM_RADIUS_TILES = 6;
     private static final float MEDIUM_BOT_CHASE_HP_RATIO = 0.5f;
-    private static final int MEDIUM_BOT_CHASE_RADIUS_TILES = 3;
+    private static final int MEDIUM_BOT_CHASE_RADIUS_TILES = 6;
     private static final int MEDIUM_BOT_RETREAT_SCAN_RADIUS_TILES = 6;
     private static final int HARD_BOT_FUEL_RESERVE = 8;
     private static final int HARD_BOT_PREDICTION_TICKS = Config.FPS;
