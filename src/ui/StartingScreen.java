@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Random;
 import javax.imageio.ImageIO;
 
-public class StartingScreen extends JPanel {
+public class
+StartingScreen extends JPanel {
 
     private List<AnimatedTacticalButton> menuButtons = new ArrayList<>();
     private int currentIndex = 0;

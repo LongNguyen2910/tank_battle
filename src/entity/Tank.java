@@ -11,6 +11,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -121,6 +122,7 @@ public class Tank extends GameObject {
     private static final float MEDIUM_BOT_CHASE_HP_RATIO = 0.5f;
     private static final int MEDIUM_BOT_CHASE_RADIUS_TILES = 6;
     private static final int MEDIUM_BOT_RETREAT_SCAN_RADIUS_TILES = 6;
+    private static final float MEDIUM_BOT_LOW_FUEL_RATIO = 0.25f;
     private static final int HARD_BOT_FUEL_RESERVE = 8;
     private static final int HARD_BOT_PREDICTION_TICKS = Config.FPS;
     private static final int HARD_BOT_DODGE_DEPTH = 3;
@@ -357,7 +359,7 @@ public class Tank extends GameObject {
         if (isBot) {
             if (botDifficulty == BotDifficulty.EASY) {
                 tryActivateEasyPanicShield();
-            } else if (botDifficulty == BotDifficulty.MEDIUM) {
+            } else if (botDifficulty == BotDifficulty.MEDIUM || botDifficulty == BotDifficulty.HARD) {
                 tryActivateBotUtilitySkills();
             }
         } else {
@@ -378,8 +380,28 @@ public class Tank extends GameObject {
             if (state != TankState.TAKING_DAMAGE) {
                 state = TankState.MOVING;
             }
-            direction = inputDirection;
-            movedThisTick = movePixelByPixel(direction, speed);
+            
+            // Movement direction
+            Direction movementDirection = inputDirection;
+            movedThisTick = movePixelByPixel(movementDirection, speed);
+            
+            // If we moved, we usually face the movement direction.
+            // But if we are a bot and have an explicit aiming 'direction' set (e.g. from intent building),
+            // we should be careful not to flicker.
+            if (isBot) {
+                // If the bot didn't explicitly set a direction for aiming this frame,
+                // or if it's moving, we default to movement direction.
+                // However, the buildMediumBotIntent and buildHardBotIntent ALREADY set 'this.direction'
+                // if they find a target to aim at. 
+                // To prevent flickering, we only overwrite 'this.direction' with 'movementDirection'
+                // if the bot is NOT aiming at an enemy (which we can check via intent.shoot or similar).
+                if (!intent.shoot) {
+                    direction = movementDirection;
+                }
+            } else {
+                direction = movementDirection;
+            }
+
             if (isBot && !movedThisTick) {
                 botMoveTicksRemaining = 0;
             }
@@ -416,9 +438,15 @@ public class Tank extends GameObject {
             botMoveTicksRemaining = 8 + random.nextInt(16);
         } else {
             if (botMoveTicksRemaining <= 0 || isDirectionBlocked(botMoveDirection)) {
-                botMoveDirection = randomDirectionExcluding(Direction.NONE);
-                botMoveTicksRemaining = EASY_BOT_MIN_WALK_TICKS
-                        + random.nextInt(EASY_BOT_MAX_WALK_TICKS - EASY_BOT_MIN_WALK_TICKS + 1);
+                Direction nextDir = randomDirectionExcluding(botMoveDirection);
+                if (nextDir != Direction.NONE) {
+                    botMoveDirection = nextDir;
+                    botMoveTicksRemaining = EASY_BOT_MIN_WALK_TICKS
+                            + random.nextInt(EASY_BOT_MAX_WALK_TICKS - EASY_BOT_MIN_WALK_TICKS + 1);
+                } else {
+                    botMoveDirection = Direction.NONE;
+                    botMoveTicksRemaining = 10;
+                }
             }
             botMoveTicksRemaining--;
         }
@@ -450,22 +478,29 @@ public class Tank extends GameObject {
 
         int chaseHpThreshold = Math.max(1, (int) Math.ceil(Config.MAX_HEALTH * MEDIUM_BOT_CHASE_HP_RATIO));
         boolean isLowHp = currentHealth <= chaseHpThreshold;
-        boolean shouldRetreat = nearestEnemyTile != null && currentHealth <= chaseHpThreshold;
+        boolean isLowFuel = currentFuel <= (int)(type.getFuel() * MEDIUM_BOT_LOW_FUEL_RATIO);
+        boolean shouldRetreat = nearestEnemyTile != null && isLowHp;
         boolean shouldChase = shouldChaseEnemy(enemyDistance, chaseHpThreshold);
 
         Point retreatTarget = shouldRetreat ? findRetreatTargetTile(selfTile, nearestEnemyTile) : null;
-        Point itemTarget = isLowHp
-                ? findBestHealthItemTile(selfTile, nearestEnemyTile)
-                : ((!shouldRetreat && hasEmptySkillSlot()) ? findNearestItemTile(selfTile) : null);
-        Point enemyTarget = shouldChase ? findStandoffTargetTile(selfTile, nearestEnemyTile, MEDIUM_BOT_CHASE_RADIUS_TILES) : null;
+        
+        Point itemTarget = null;
+        if (isLowHp) itemTarget = findBestHealthItemTile(selfTile, nearestEnemyTile);
+        if (itemTarget == null && (isLowFuel || isLowHp)) itemTarget = findNearestItemTile(selfTile);
+        if (itemTarget == null && !shouldRetreat && hasEmptySkillSlot()) itemTarget = findNearestItemTile(selfTile);
 
-        if (shouldChase && enemyTarget == null) {
-            enemyTarget = nearestEnemyTile;
+        Point enemyTarget = findStandoffTargetTile(selfTile, nearestEnemyTile, MEDIUM_BOT_CHASE_RADIUS_TILES);
+        if (enemyTarget == null && nearestEnemyTile != null) enemyTarget = nearestEnemyTile;
+
+        Point desiredTarget = (isLowHp || isLowFuel)
+                ? (itemTarget != null ? itemTarget : (retreatTarget != null ? retreatTarget : enemyTarget))
+                : (retreatTarget != null ? retreatTarget : (itemTarget != null ? itemTarget : enemyTarget));
+
+        // If still no target but an enemy exists, fallback to enemy position to keep searching
+        if (desiredTarget == null && nearestEnemyTile != null) {
+            desiredTarget = nearestEnemyTile;
         }
 
-        Point desiredTarget = isLowHp
-                ? (itemTarget != null ? itemTarget : retreatTarget)
-                : (retreatTarget != null ? retreatTarget : (itemTarget != null ? itemTarget : enemyTarget));
         botTargetIsItem = desiredTarget != null && desiredTarget.equals(itemTarget);
 
         if (desiredTarget != null) {
@@ -484,6 +519,11 @@ public class Tank extends GameObject {
         }
 
         Direction moveDirection = nextDirectionFromPath(selfTile);
+        // If standing still but no LOS, force a re-path to get closer/better angle
+        // We add a check for botMoveTicksRemaining to avoid repathing every frame
+        if (moveDirection == Direction.NONE && findLineOfSightEnemy(selfTile) == null && nearestEnemyTile != null) {
+            if (botRepathTicks > 10) botRepathTicks = 10;
+        }
         botMoveDirection = moveDirection;
         intent.moveDirection = botMoveDirection;
 
@@ -493,7 +533,21 @@ public class Tank extends GameObject {
             Direction attackDirection = directionToTargetTile(selfTile, enemyTile);
             if (attackDirection != Direction.NONE) {
                 direction = attackDirection;
-                intent.shoot = true;
+                // If we have a shooting skill, hold normal fire to let the skill trigger when cooldown is 0
+                if (!hasShootingSkill()) {
+                    intent.shoot = true;
+                }
+            }
+        } else {
+            // If no LOS, we should face our movement direction when moving, 
+            // or face the enemy if standing still to search.
+            if (moveDirection != Direction.NONE) {
+                direction = moveDirection;
+            } else if (nearestEnemyTile != null) {
+                Direction faceEnemy = directionToTargetTile(selfTile, nearestEnemyTile);
+                if (faceEnemy != Direction.NONE) {
+                    direction = faceEnemy;
+                }
             }
         }
 
@@ -528,6 +582,7 @@ public class Tank extends GameObject {
 
         int hpThreshold = Math.max(1, (int) Math.ceil(Config.MAX_HEALTH * HARD_BOT_RETREAT_HP_RATIO));
         boolean lowHp = currentHealth <= hpThreshold;
+        boolean lowFuel = currentFuel <= (int)(type.getFuel() * MEDIUM_BOT_LOW_FUEL_RATIO);
 
         BulletThreat imminentThreat = detectImminentBulletThreat(selfTile, HARD_BOT_JUST_FRAME_TILE_DISTANCE + 1);
         if (imminentThreat != null && imminentThreat.distanceTiles <= HARD_BOT_JUST_FRAME_TILE_DISTANCE) {
@@ -539,10 +594,16 @@ public class Tank extends GameObject {
             }
         }
 
-        if (lowHp) {
-            Point healthTile = findBestHealthItemTile(selfTile, enemyTile);
+        if (lowHp || lowFuel) {
+            Point healthTile = lowHp ? findBestHealthItemTile(selfTile, enemyTile) : null;
+            if (healthTile == null && (lowFuel || lowHp)) healthTile = findNearestItemTile(selfTile);
+            
             Point retreatTile = enemyTile == null ? null : findRetreatTargetTile(selfTile, enemyTile);
-            Point target = healthTile != null ? healthTile : retreatTile;
+            Point standoffTarget = enemyTile == null ? null : findStandoffTargetTile(selfTile, enemyTile, HARD_BOT_ATTACK_STANDOFF_DISTANCE);
+            
+            Point target = healthTile != null ? healthTile : (retreatTile != null ? retreatTile : standoffTarget);
+            if (target == null) target = enemyTile;
+
             botTargetIsItem = target != null && target.equals(healthTile);
             updateHardPathAndMove(target, selfTile, intent);
             if (enemyTile != null && canSpendFuel(1) && manhattanDistance(selfTile, enemyTile) <= MEDIUM_BOT_SHIELD_RADIUS_TILES) {
@@ -579,7 +640,9 @@ public class Tank extends GameObject {
             Direction attackDirection = directionToTargetTile(selfTile, shootingTile);
             if (attackDirection != Direction.NONE) {
                 direction = attackDirection;
-                intent.shoot = true;
+                if (!hasShootingSkill()) {
+                    intent.shoot = true;
+                }
             }
         } else {
             Tank losEnemy = findLineOfSightEnemy(selfTile);
@@ -588,7 +651,16 @@ public class Tank extends GameObject {
                 Direction attackDirection = directionToTargetTile(selfTile, losTile);
                 if (attackDirection != Direction.NONE) {
                     direction = attackDirection;
-                    intent.shoot = true;
+                    if (!hasShootingSkill()) {
+                        intent.shoot = true;
+                    }
+                }
+            } else if (intent.moveDirection != Direction.NONE) {
+                direction = intent.moveDirection;
+            } else if (enemyTile != null) {
+                Direction faceEnemy = directionToTargetTile(selfTile, enemyTile);
+                if (faceEnemy != Direction.NONE) {
+                    direction = faceEnemy;
                 }
             }
         }
@@ -612,12 +684,24 @@ public class Tank extends GameObject {
                 botRepathTicks--;
             }
         } else {
-            botTargetTile = null;
-            botPathTiles.clear();
-            botPathIndex = 0;
+            // If no standoff or item target, still try to find the enemy
+            Point enemyTile = findNearestEnemyTile(selfTile);
+            if (enemyTile != null) {
+                botTargetTile = enemyTile;
+                rebuildPathAStar(selfTile, enemyTile);
+                botRepathTicks = MEDIUM_BOT_REPATH_TICKS;
+            } else {
+                botTargetTile = null;
+                botPathTiles.clear();
+                botPathIndex = 0;
+            }
         }
 
         Direction moveDirection = nextDirectionFromPath(selfTile);
+        // If standing still but no LOS, force a re-path to get closer/better angle
+        if (moveDirection == Direction.NONE && findLineOfSightEnemy(selfTile) == null && botTargetTile != null) {
+            if (botRepathTicks > 10) botRepathTicks = 10;
+        }
         botMoveDirection = moveDirection;
         intent.moveDirection = botMoveDirection;
     }
@@ -633,7 +717,7 @@ public class Tank extends GameObject {
         }
 
         Point best = null;
-        int bestScore = Integer.MAX_VALUE;
+        double bestScore = Double.MAX_VALUE;
 
         for (int col = 0; col < Config.MAX_SCREEN_COL; col++) {
             for (int row = 0; row < Config.MAX_SCREEN_ROW; row++) {
@@ -641,14 +725,16 @@ public class Tank extends GameObject {
                     continue;
                 }
 
-                int distanceToEnemy = manhattanDistance(col, row, enemyTile.x, enemyTile.y);
-                if (distanceToEnemy != desiredDistance) {
-                    continue;
-                }
+                int distToEnemy = manhattanDistance(col, row, enemyTile.x, enemyTile.y);
+                boolean hasLOS = hasLineOfSightToTile(new Point(col, row), enemyTile);
 
-                int distanceToSelf = manhattanDistance(col, row, selfTile.x, selfTile.y);
-                if (distanceToSelf < bestScore) {
-                    bestScore = distanceToSelf;
+                // Score: prioritize LOS, then proximity to desired distance, then proximity to self
+                double score = Math.abs(distToEnemy - desiredDistance) * 1.0;
+                if (!hasLOS) score += 50.0; // Prefer LOS but don't make it mandatory
+                score += manhattanDistance(col, row, selfTile.x, selfTile.y) * 0.1;
+
+                if (score < bestScore) {
+                    bestScore = score;
                     best = new Point(col, row);
                 }
             }
@@ -678,11 +764,14 @@ public class Tank extends GameObject {
                 }
 
                 int enemyDistance = manhattanDistance(enemyTile, candidate);
-                if (enemyDistance <= currentEnemyDistance) {
-                    continue;
+                // Score: prioritize tiles further from enemy
+                int score = enemyDistance * 10 - selfDistance;
+                
+                // Add bonus for breaking line of sight
+                if (!hasLineOfSightToTile(candidate, enemyTile)) {
+                    score += 100;
                 }
 
-                int score = enemyDistance * 10 - selfDistance;
                 if (score > bestScore) {
                     bestScore = score;
                     best = candidate;
@@ -691,6 +780,17 @@ public class Tank extends GameObject {
         }
 
         return best;
+    }
+
+    private boolean hasShootingSkill() {
+        for (SkillType skill : skillSlots) {
+            if (skill == SkillType.TRIPLE_SHOT || skill == SkillType.PHASE_SHOT || skill == SkillType.BIG_PHASE_SHOT) {
+                if (currentFuel >= skill.getFuelCost()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean hasEmptySkillSlot() {
@@ -727,42 +827,41 @@ public class Tank extends GameObject {
     }
 
     private void tryActivateBotUtilitySkills() {
-        if (hasShield) {
-            return;
-        }
-
-        int shieldHealthThreshold = Math.max(1, (int) Math.ceil(Config.MAX_HEALTH * MEDIUM_BOT_SHIELD_HP_RATIO));
-        if (currentHealth > shieldHealthThreshold) {
-            return;
-        }
-
         Point selfTile = getCurrentTile();
         Tank nearestEnemy = findNearestEnemyTank(selfTile);
-        if (nearestEnemy == null) {
-            return;
-        }
-
-        int enemyDistance = manhattanDistance(selfTile, toTileCenter(nearestEnemy.getSolidArea()));
-        if (enemyDistance > MEDIUM_BOT_SHIELD_RADIUS_TILES) {
-            return;
-        }
+        Point enemyTile = nearestEnemy != null ? toTileCenter(nearestEnemy.getSolidArea()) : null;
+        int enemyDistance = enemyTile != null ? manhattanDistance(selfTile, enemyTile) : -1;
 
         for (int i = 0; i < skillSlots.length; i++) {
-            if (skillSlots[i] != SkillType.SHIELD) {
-                continue;
-            }
-            if (currentFuel < SkillType.SHIELD.getFuelCost()) {
-                return;
-            }
-            if (!canActivateSkill(SkillType.SHIELD)) {
-                return;
+            SkillType skill = skillSlots[i];
+            if (skill == SkillType.NONE) continue;
+
+            boolean shouldUse = false;
+            switch (skill) {
+                case SHIELD -> {
+                    int shieldHealthThreshold = Math.max(1, (int) Math.ceil(Config.MAX_HEALTH * MEDIUM_BOT_SHIELD_HP_RATIO));
+                    if (currentHealth <= shieldHealthThreshold && enemyDistance >= 0 && enemyDistance <= MEDIUM_BOT_SHIELD_RADIUS_TILES) {
+                        shouldUse = true;
+                    }
+                }
+                case TRIPLE_SHOT, PHASE_SHOT, BIG_PHASE_SHOT -> {
+                    Tank losEnemy = findLineOfSightEnemy(selfTile);
+                    if (losEnemy != null) {
+                        shouldUse = true;
+                    }
+                }
+                case BOMB, TRAP, SLOW, TOXIC -> {
+                    if (enemyDistance >= 0 && enemyDistance <= 3) shouldUse = true;
+                }
             }
 
-            currentFuel -= SkillType.SHIELD.getFuelCost();
-            SkillType.SHIELD.activate(this);
-            skillSlots[i] = SkillType.NONE;
-            refreshSkillSlotIcons();
-            return;
+            if (shouldUse) {
+                // Hard bot can ignore fuel reserve for offensive opportunities
+                boolean critical = (skill != SkillType.SHIELD && botDifficulty == BotDifficulty.HARD);
+                if (tryActivateBotSkill(skill, critical)) {
+                    return; 
+                }
+            }
         }
     }
 
@@ -969,9 +1068,8 @@ public class Tank extends GameObject {
             return bestAlternative;
         }
 
-        // If no direction directly reduces distance, pick any unblocked direction
-        // This might lead to temporary detours but avoids getting stuck
-        return possibleAlternatives.get(random.nextInt(possibleAlternatives.size()));
+        // If no alternative moves us closer, just stop to avoid jittering/spinning.
+        return Direction.NONE;
     }
 
     private Point findNearestItemTile(Point fromTile) {
@@ -979,6 +1077,19 @@ public class Tank extends GameObject {
         int bestDistance = Integer.MAX_VALUE;
 
         for (Item item : gp.itemList) {
+            // Skip health if already full
+            if (item.getItemType() == Item.ItemType.HEALTH && currentHealth >= Config.MAX_HEALTH) {
+                continue;
+            }
+            // Skip energy if already full
+            if (item.getItemType() == Item.ItemType.ENERGY && currentFuel >= type.getFuel()) {
+                continue;
+            }
+            // Skip skill chests if inventory is full
+            if (item.getItemType() == Item.ItemType.SKILL_CHEST && !hasEmptySkillSlot()) {
+                continue;
+            }
+
             Point itemTile = toTileCenter(item.getSolidArea());
             int distance = manhattanDistance(fromTile, itemTile);
             if (distance < bestDistance) {
@@ -991,6 +1102,10 @@ public class Tank extends GameObject {
     }
 
     private Point findBestHealthItemTile(Point selfTile, Point enemyTile) {
+        if (currentHealth >= Config.MAX_HEALTH) {
+            return null;
+        }
+
         Point best = null;
         int bestScore = Integer.MIN_VALUE;
 
@@ -1110,7 +1225,8 @@ public class Tank extends GameObject {
     }
 
     private boolean canSpendFuel(int amount) {
-        return currentFuel - Math.max(0, amount) >= HARD_BOT_FUEL_RESERVE;
+        int reserve = (botDifficulty == BotDifficulty.HARD) ? HARD_BOT_FUEL_RESERVE : 0;
+        return currentFuel - Math.max(0, amount) >= reserve;
     }
 
     private BulletThreat detectImminentBulletThreat(Point selfTile, int maxDistanceTiles) {
@@ -1369,6 +1485,11 @@ public class Tank extends GameObject {
                 continue;
             }
 
+            // Target anybody not on our team. If teamId is 0, everyone else is an enemy.
+            if (this.teamId != 0 && tank.getTeamId() == this.teamId) {
+                continue;
+            }
+
             int distance = manhattanDistance(fromTile, toTileCenter(tank.getSolidArea()));
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -1388,6 +1509,11 @@ public class Tank extends GameObject {
                 continue;
             }
             if (tank.getState() == TankState.DYING || tank.getState() == TankState.DEAD) {
+                continue;
+            }
+
+            // Target anybody not on our team.
+            if (this.teamId != 0 && tank.getTeamId() == this.teamId) {
                 continue;
             }
 
@@ -1417,6 +1543,10 @@ public class Tank extends GameObject {
                 continue;
             }
             if (tank.getState() == TankState.DYING || tank.getState() == TankState.DEAD) {
+                continue;
+            }
+
+            if (this.teamId != 0 && tank.getTeamId() == this.teamId) {
                 continue;
             }
 
@@ -1460,24 +1590,16 @@ public class Tank extends GameObject {
 
     private Direction randomDirectionExcluding(Direction excludedDirection) {
         Direction[] allDirections = {Direction.UP, Direction.RIGHT, Direction.DOWN, Direction.LEFT};
-        Direction fallback = Direction.UP;
-        boolean fallbackSet = false;
+        List<Direction> candidates = new ArrayList<>(Arrays.asList(allDirections));
+        Collections.shuffle(candidates);
 
-        for (int attempt = 0; attempt < allDirections.length * 2; attempt++) {
-            Direction candidate = allDirections[random.nextInt(allDirections.length)];
-            if (candidate == excludedDirection) {
-                continue;
-            }
-            if (!isDirectionBlocked(candidate)) {
+        for (Direction candidate : candidates) {
+            if (candidate != excludedDirection && !isDirectionBlocked(candidate)) {
                 return candidate;
-            }
-            if (!fallbackSet) {
-                fallback = candidate;
-                fallbackSet = true;
             }
         }
 
-        return fallbackSet ? fallback : Direction.UP;
+        return Direction.NONE;
     }
 
     private boolean isValidTile(int col, int row) {
