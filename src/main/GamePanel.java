@@ -3,13 +3,12 @@ package main;
 import entity.*;
 import item.Item;
 import tile.TileManager;
-import ui.startingscreen;
-import ui.Pause;
-import ui.WinnerOverlay;
+import ui.StartingScreen;
+import ui.PauseScreen;
+import ui.WinScreen;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.*;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -27,7 +26,7 @@ public class GamePanel extends JPanel implements Runnable{
     private Thread gameThread;
     private final KeyHandler keyH = new KeyHandler();
     private boolean paused = false;
-    private Pause pauseOverlay;
+    private PauseScreen pauseScreen;
 
     private final TileManager tileM = new TileManager(this);
 
@@ -62,7 +61,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     private GameConfig config;
     private boolean gameEnded = false;
-    private WinnerOverlay winnerOverlay;
+    private WinScreen winScreen;
     private int matchSecondsRemaining;
     private int secondTickCounter = 0;
 
@@ -92,38 +91,12 @@ public class GamePanel extends JPanel implements Runnable{
         });
 
         // create pause overlay and hide it initially; wire button callbacks
-        pauseOverlay = new Pause();
-        pauseOverlay.setPauseListener(new Pause.PauseListener() {
+        pauseScreen = new PauseScreen();
+        pauseScreen.setPauseListener(new PauseScreen.PauseListener() {
             @Override
             public void onResume() {
                 // act like pressing resume
                 if (paused) togglePause();
-            }
-
-            @Override
-            public void onSetting() {
-                // Ensure game remains paused and overlay stays visible while settings dialog is open
-                paused = true;
-                java.awt.Window win = SwingUtilities.getWindowAncestor(GamePanel.this);
-                javax.swing.JFrame parent = null;
-                if (win instanceof javax.swing.JFrame) parent = (javax.swing.JFrame) win;
-                // Ensure overlay is in the layered pane and sized
-                if (parent != null) {
-                    JLayeredPane lp = parent.getLayeredPane();
-                    if (pauseOverlay.getParent() != lp) lp.add(pauseOverlay, JLayeredPane.POPUP_LAYER);
-                    Dimension sz = lp.getSize();
-                    pauseOverlay.setBounds(0, 0, sz.width, sz.height);
-                    pauseOverlay.layoutButtons();
-                    pauseOverlay.setVisible(true);
-                    lp.revalidate(); lp.repaint();
-                }
-
-                // open modal settings dialog; when it closes we keep paused=true and overlay visible
-                new ui.SettingsDialog(parent).setVisible(true);
-                // restore overlay focus
-                if (pauseOverlay.getParent() instanceof JLayeredPane) {
-                    pauseOverlay.requestFocusInWindow();
-                }
             }
 
             @Override
@@ -133,9 +106,9 @@ public class GamePanel extends JPanel implements Runnable{
                 if (win instanceof javax.swing.JFrame) {
                     javax.swing.JFrame frame = (javax.swing.JFrame) win;
                     // remove overlay if present
-                    if (pauseOverlay.getParent() instanceof JLayeredPane) {
-                        JLayeredPane lp = (JLayeredPane) pauseOverlay.getParent();
-                        lp.remove(pauseOverlay);
+                    if (pauseScreen.getParent() instanceof JLayeredPane) {
+                        JLayeredPane lp = (JLayeredPane) pauseScreen.getParent();
+                        lp.remove(pauseScreen);
                         lp.revalidate(); lp.repaint();
                     }
                     // stop current game thread
@@ -144,7 +117,7 @@ public class GamePanel extends JPanel implements Runnable{
                     // create fresh GamePanel with main menu
                     GameConfig menuConfig = new GameConfig();
                     menuConfig.startImmediately = false;
-                    startingscreen menu = new startingscreen();
+                    StartingScreen menu = new StartingScreen();
                     GamePanel gp = new GamePanel(menuConfig);
                     gp.setLayout(new BorderLayout());
                     gp.add(menu, BorderLayout.CENTER);
@@ -159,7 +132,7 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
         });
-        pauseOverlay.setVisible(false);
+        pauseScreen.setVisible(false);
         // do not add to this panel's layout; we'll place the overlay on the
         // root layered pane when pausing so it reliably appears above everything        
         tileM.loadMap(config.mapPath);
@@ -349,9 +322,9 @@ public class GamePanel extends JPanel implements Runnable{
         // stop loop and clear pause overlay if present
         stopGameThread();
         paused = false;
-        if (pauseOverlay != null && pauseOverlay.getParent() instanceof JLayeredPane) {
-            JLayeredPane lp = (JLayeredPane) pauseOverlay.getParent();
-            lp.remove(pauseOverlay);
+        if (pauseScreen != null && pauseScreen.getParent() instanceof JLayeredPane) {
+            JLayeredPane lp = (JLayeredPane) pauseScreen.getParent();
+            lp.remove(pauseScreen);
             lp.revalidate();
             lp.repaint();
         }
@@ -362,9 +335,9 @@ public class GamePanel extends JPanel implements Runnable{
         }
         JFrame frame = (JFrame) win;
 
-        if (winnerOverlay == null) {
-            winnerOverlay = new WinnerOverlay();
-            winnerOverlay.setWinnerListener(new WinnerOverlay.WinnerListener() {
+        if (winScreen == null) {
+            winScreen = new WinScreen();
+            winScreen.setWinnerListener(new WinScreen.WinnerListener() {
                 @Override
                 public void onPlayAgain() {
                     frame.dispose();
@@ -389,16 +362,16 @@ public class GamePanel extends JPanel implements Runnable{
             });
         }
 
-        winnerOverlay.setWinnerText(winnerText);
+        winScreen.setWinnerText(winnerText);
 
         JLayeredPane lp = frame.getLayeredPane();
-        if (winnerOverlay.getParent() != lp) {
-            lp.add(winnerOverlay, JLayeredPane.POPUP_LAYER);
+        if (winScreen.getParent() != lp) {
+            lp.add(winScreen, JLayeredPane.POPUP_LAYER);
         }
         Dimension sz = lp.getSize();
-        winnerOverlay.setBounds(0, 0, sz.width, sz.height);
-        winnerOverlay.layoutButtons();
-        winnerOverlay.runWinner(true);
+        winScreen.setBounds(0, 0, sz.width, sz.height);
+        winScreen.layoutButtons();
+        winScreen.runWinner(true);
         lp.revalidate();
         lp.repaint();
     }
@@ -487,31 +460,31 @@ public class GamePanel extends JPanel implements Runnable{
 
     private void togglePause() {
         paused = !paused;
-        if (pauseOverlay != null) {
-            pauseOverlay.runPause(paused);
+        if (pauseScreen != null) {
+            pauseScreen.runPause(paused);
             java.awt.Window win = SwingUtilities.getWindowAncestor(this);
             if (paused) {
                 if (win instanceof javax.swing.JFrame) {
                     javax.swing.JFrame frame = (javax.swing.JFrame) win;
                     JLayeredPane lp = frame.getLayeredPane();
                     // add overlay to layered pane so it is above everything
-                    if (pauseOverlay.getParent() != lp) {
-                        lp.add(pauseOverlay, JLayeredPane.POPUP_LAYER);
+                    if (pauseScreen.getParent() != lp) {
+                        lp.add(pauseScreen, JLayeredPane.POPUP_LAYER);
                     }
                     Dimension sz = lp.getSize();
-                    pauseOverlay.setBounds(0, 0, sz.width, sz.height);
+                    pauseScreen.setBounds(0, 0, sz.width, sz.height);
                     // position buttons after bounds set
-                    pauseOverlay.layoutButtons();
-                    pauseOverlay.setVisible(true);
-                    pauseOverlay.requestFocusInWindow();
+                    pauseScreen.layoutButtons();
+                    pauseScreen.setVisible(true);
+                    pauseScreen.requestFocusInWindow();
                     lp.revalidate();
                     lp.repaint();
                 }
             } else {
                 // remove overlay from layered pane
-                if (pauseOverlay.getParent() instanceof JLayeredPane) {
-                    JLayeredPane lp = (JLayeredPane) pauseOverlay.getParent();
-                    lp.remove(pauseOverlay);
+                if (pauseScreen.getParent() instanceof JLayeredPane) {
+                    JLayeredPane lp = (JLayeredPane) pauseScreen.getParent();
+                    lp.remove(pauseScreen);
                     lp.revalidate();
                     lp.repaint();
                 }

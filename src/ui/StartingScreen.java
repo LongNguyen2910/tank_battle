@@ -1,7 +1,7 @@
 package ui;
 
 import main.Config;
-import main.GamePanel;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -12,12 +12,12 @@ import java.util.List;
 import java.util.Random;
 import javax.imageio.ImageIO;
 
-public class startingscreen extends JPanel {
+public class StartingScreen extends JPanel {
 
     private List<AnimatedTacticalButton> menuButtons = new ArrayList<>();
     private int currentIndex = 0;
 
-    public startingscreen() {
+    public StartingScreen() {
         this.setPreferredSize(new Dimension(Config.MENU_WIDTH, Config.MENU_HEIGHT));
         this.setLayout(new BorderLayout());
 
@@ -85,7 +85,7 @@ public class startingscreen extends JPanel {
     public static void main(String[] args) {
         JFrame frame = new JFrame("Tank Battle");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.add(new startingscreen());
+        frame.add(new StartingScreen());
         frame.pack();
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
@@ -125,18 +125,18 @@ public class startingscreen extends JPanel {
                     System.exit(0);
                 } else if (selectedName.equals("Start")) {
                     // Dispose the current window and open Lobby
-                    Window win = SwingUtilities.getWindowAncestor(startingscreen.this);
+                    Window win = SwingUtilities.getWindowAncestor(StartingScreen.this);
                     if (win != null) {
                         win.dispose();
                     }
                     new LobbyScreen().setVisible(true); 
                 } else if (selectedName.equals("Setting")) {
-                    java.awt.Window win = SwingUtilities.getWindowAncestor(startingscreen.this);
+                    java.awt.Window win = SwingUtilities.getWindowAncestor(StartingScreen.this);
                     javax.swing.JFrame parent = null;
                     if (win instanceof javax.swing.JFrame) parent = (javax.swing.JFrame) win;
                     new SettingsDialog(parent).setVisible(true);
                 } else {
-                    JOptionPane.showMessageDialog(startingscreen.this, "Vừa ấn: " + selectedName);
+                    JOptionPane.showMessageDialog(StartingScreen.this, "Vừa ấn: " + selectedName);
                 }
             }
         });
