@@ -61,7 +61,7 @@ public class TankSelectionScreen extends JFrame {
         AnimatedTacticalButton backBtn = new AnimatedTacticalButton("BACK");
         backBtn.addActionListener(e -> {
             dispose();
-            new LobbyScreen().setVisible(true);
+            new LobbyScreen(config).setVisible(true);
         });
         footer.add(backBtn);
 

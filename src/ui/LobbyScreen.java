@@ -15,7 +15,7 @@ import java.util.Random;
 import javax.imageio.ImageIO;
 
 public class LobbyScreen extends JFrame {
-    private GameConfig config = new GameConfig();
+    private GameConfig config;
     private JLabel playerCountLabel;
     private JLabel computerCountLabel;
     private JLabel mapLabel;
@@ -28,7 +28,19 @@ public class LobbyScreen extends JFrame {
     private String[] modes = {"Deathmatch", "Capture the Flag", "Survival"};
     private int currentModeIndex = 0;
 
-    // Map Preview logic
+    /** Giữ mapPath khớp với map đang chọn trong lobby (preview + khi vào game). */
+    private void syncMapSelectionFromConfig() {
+        currentMapIndex = 0;
+        for (int i = 0; i < maps.length; i++) {
+            if (maps[i].equals(config.mapPath)) {
+                currentMapIndex = i;
+                break;
+            }
+        }
+        config.mapPath = maps[currentMapIndex];
+    }
+
+    // Map Preview logic — màu theo ID tile trong TileManager (0–12)
     private BufferedImage generateMapPreview(String path) {
         int previewScale = 10; // Kích thước mỗi ô trong bản xem trước
         BufferedImage img = new BufferedImage(Config.MAX_SCREEN_COL * previewScale, 
@@ -50,16 +62,19 @@ public class LobbyScreen extends JFrame {
                     String[] numbers = line.split("\\s+");
                     for (int col = 0; col < Config.MAX_SCREEN_COL && col < numbers.length; col++) {
                         int num = Integer.parseInt(numbers[col]);
-                        if (num == 1) { // Tường cứng
-                            g2.setColor(new Color(100, 100, 100)); 
-                            g2.fillRect(col * previewScale, row * previewScale, previewScale - 1, previewScale - 1);
-                        } else if (num == 2) { // Tường phá được
-                            g2.setColor(new Color(139, 69, 19)); 
-                            g2.fillRect(col * previewScale, row * previewScale, previewScale - 1, previewScale - 1);
-                        } else if (num == 3) { // Nước
-                            g2.setColor(new Color(30, 144, 255));
-                            g2.fillRect(col * previewScale, row * previewScale, previewScale, previewScale);
+                        Color c;
+                        switch (num) {
+                            case 0 -> c = new Color(72, 130, 62);
+                            case 1, 2, 3 -> c = new Color(88, 118, 72);
+                            case 4, 5 -> c = new Color(62, 62, 72);
+                            case 6 -> c = new Color(110, 118, 105);
+                            case 7, 8, 9 -> c = new Color(78, 112, 68);
+                            case 10, 11 -> c = new Color(82, 105, 74);
+                            case 12 -> c = new Color(28, 72, 38);
+                            default -> c = new Color(45, 45, 50);
                         }
+                        g2.setColor(c);
+                        g2.fillRect(col * previewScale, row * previewScale, previewScale - 1, previewScale - 1);
                     }
                 }
                 br.close();
@@ -72,6 +87,12 @@ public class LobbyScreen extends JFrame {
     }
 
     public LobbyScreen() {
+        this(new GameConfig());
+    }
+
+    public LobbyScreen(GameConfig config) {
+        this.config = config;
+        syncMapSelectionFromConfig();
         setTitle("Game Configuration");
         setSize(Config.MENU_WIDTH, Config.MENU_HEIGHT);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

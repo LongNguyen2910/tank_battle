@@ -22,7 +22,7 @@ public class TileManager {
 
         getTileImage();
         // Load default map if none specified
-        loadMap("/maps/test/map01.txt");
+        loadMap("/maps/map01.txt");
     }
 
     private void getTileImage() {
