@@ -47,8 +47,8 @@ C:\Users\LOQ\IdeaProjects\tank_battle\
 - Trong IntelliJ: Chuột phải vào thư mục `res` > **Mark Directory as > Resources Root**.
 
 ### 4. Chạy trò chơi
-- Tìm đến tệp tin `src/main/GameWindow.java`.
-- Chuột phải vào tệp và chọn **Run 'GameWindow.main()'**.
+- Tìm đến tệp tin `src/ui/StartingScreen.java`.
+- Chuột phải vào tệp và chọn **Run**.
 - Trò chơi sẽ khởi động với màn hình Starting Screen.
 
 ## 🎮 Cách điều khiển (Mặc định)
