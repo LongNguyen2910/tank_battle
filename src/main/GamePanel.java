@@ -531,13 +531,24 @@ public class GamePanel extends JPanel implements Runnable{
         
         TankType[] availableTanks = TankType.values();
         java.util.Random rand = new java.util.Random();
+        Tank.BotDifficulty botDifficulty = resolveBotDifficulty();
         
         for (int i = 0; i < config.computerCount; i++) {
             int pNum = config.playerCount + i + 1;
             // Bot chọn ngẫu nhiên
             TankType randomType = availableTanks[rand.nextInt(availableTanks.length)];
-            tankList.add(new Tank(this, keyH, randomType, pNum, new KeySetting(0,0,0,0,0,0,0,0)));
+            Tank botTank = new Tank(this, keyH, randomType, pNum, new KeySetting(0,0,0,0,0,0,0,0), true, botDifficulty);
+            tankList.add(botTank);
         }
+    }
+
+    private Tank.BotDifficulty resolveBotDifficulty() {
+        String configured = Config.DIFFICULTY == null ? "MEDIUM" : Config.DIFFICULTY.trim().toUpperCase();
+        return switch (configured) {
+            case "EASY" -> Tank.BotDifficulty.EASY;
+            case "HARD" -> Tank.BotDifficulty.HARD;
+            default -> Tank.BotDifficulty.MEDIUM;
+        };
     }
 
 

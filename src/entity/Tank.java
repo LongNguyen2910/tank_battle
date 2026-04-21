@@ -1,5 +1,6 @@
 package entity;
 
+import item.Item;
 import main.Config;
 import main.GamePanel;
 import main.KeyHandler;
@@ -10,10 +11,22 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Random;
 
 public class Tank extends GameObject {
+    public enum BotDifficulty {
+        EASY,
+        MEDIUM,
+        HARD
+    }
+
     public enum TankState {
         IDLE,
         MOVING,
@@ -59,6 +72,9 @@ public class Tank extends GameObject {
     private BufferedImage[] poisonEffectFrames = new BufferedImage[0];
     private final int playerNum;
     private final KeySetting keySetting;
+    private final boolean isBot;
+    private final BotDifficulty botDifficulty;
+    private final Random random = new Random();
 
     private int shotCooldown = 0;
     private int shotCooldownMax = 1;
@@ -86,11 +102,50 @@ public class Tank extends GameObject {
     private int poisonTickCounter = 0;
     private int poisonEffectTick = 0;
     private Trap currentTrap = null;
+    private Direction botMoveDirection = Direction.UP;
+    private int botMoveTicksRemaining = 0;
+    private int botDashTicksRemaining = 0;
+    private final List<Point> botPathTiles = new ArrayList<>();
+    private int botPathIndex = 0;
+    private int botRepathTicks = 0;
+    private Point botTargetTile = null;
+    private boolean botTargetIsItem = false;
+    private final Map<Tank, Point> observedEnemyTiles = new HashMap<>();
+
+    private static final int MEDIUM_BOT_REPATH_TICKS = 18;
+    private static final int MEDIUM_BOT_SHIELD_RADIUS_TILES = 5;
+    private static final float MEDIUM_BOT_SHIELD_HP_RATIO = 0.5f;
+    private static final int MEDIUM_BOT_DASH_ITEM_RADIUS_TILES = 6;
+    private static final float MEDIUM_BOT_CHASE_HP_RATIO = 0.5f;
+    private static final int MEDIUM_BOT_CHASE_RADIUS_TILES = 3;
+    private static final int MEDIUM_BOT_RETREAT_SCAN_RADIUS_TILES = 6;
+    private static final int HARD_BOT_FUEL_RESERVE = 8;
+    private static final int HARD_BOT_PREDICTION_TICKS = Config.FPS;
+    private static final int HARD_BOT_DODGE_DEPTH = 3;
+    private static final int HARD_BOT_JUST_FRAME_TILE_DISTANCE = 2;
+    private static final int HARD_BOT_STANDOFF_DISTANCE = 3;
+    private static final float HARD_BOT_RETREAT_HP_RATIO = 0.35f;
+    private static final int HARD_BOT_ATTACK_STANDOFF_DISTANCE = 2;
+    private static final int EASY_BOT_MIN_WALK_TICKS = 25;
+    private static final int EASY_BOT_MAX_WALK_TICKS = 90;
+    private static final int EASY_BOT_DANGER_RADIUS = 3 * Config.TILE_SIZE;
+    private static final int EASY_BOT_LOW_HP_THRESHOLD = 35;
+    private static final float EASY_BOT_RANDOM_SHOOT_CHANCE = 0.05f;
 
     public Tank(GamePanel gp, KeyHandler keyH, TankType type, int playerNum, KeySetting keySetting) {
+        this(gp, keyH, type, playerNum, keySetting, false);
+    }
+
+    public Tank(GamePanel gp, KeyHandler keyH, TankType type, int playerNum, KeySetting keySetting, boolean isBot) {
+        this(gp, keyH, type, playerNum, keySetting, isBot, BotDifficulty.MEDIUM);
+    }
+
+    public Tank(GamePanel gp, KeyHandler keyH, TankType type, int playerNum, KeySetting keySetting, boolean isBot, BotDifficulty botDifficulty) {
         this.gp = gp;
         this.keyH = keyH;
         this.type = type;
+        this.isBot = isBot;
+        this.botDifficulty = botDifficulty == null ? BotDifficulty.MEDIUM : botDifficulty;
 
         this.maxFuel = type.getFuel();
         this.currentFuel = type.getFuel();
@@ -142,6 +197,21 @@ public class Tank extends GameObject {
         shotCooldown = 0;
         shotCooldownMax = 1;
         currentTrap = null;
+        botMoveDirection = Direction.UP;
+        botMoveTicksRemaining = 0;
+        botDashTicksRemaining = 0;
+        botPathTiles.clear();
+        botPathIndex = 0;
+        botRepathTicks = 0;
+        botTargetTile = null;
+        botTargetIsItem = false;
+        observedEnemyTiles.clear();
+    }
+
+    private static class ControlIntent {
+        private Direction moveDirection = Direction.NONE;
+        private boolean shoot;
+        private boolean dash;
     }
 
     public void getSprite() {
@@ -229,8 +299,15 @@ public class Tank extends GameObject {
 
         int baseSpeed = type.getSpeed();
         int desiredSpeed = baseSpeed;
+        ControlIntent intent = isBot
+                ? switch (botDifficulty) {
+                    case EASY -> buildEasyBotIntent();
+                    case HARD -> buildHardBotIntent();
+                    case MEDIUM -> buildMediumBotIntent();
+                }
+                : buildHumanIntent();
 
-        if (keyH.isPressed(keySetting.getKeyDash()) && currentFuel > 0) {
+        if (intent.dash && currentFuel > 0) {
             desiredSpeed = baseSpeed + 2;
 
             currentFuel--;
@@ -269,12 +346,20 @@ public class Tank extends GameObject {
             }
         }
 
-        handleSkillInput(keySetting.getKeySkill1(), skillSlots[0]);
-        handleSkillInput(keySetting.getKeySkill2(), skillSlots[1]);
+        if (isBot) {
+            if (botDifficulty == BotDifficulty.EASY) {
+                tryActivateEasyPanicShield();
+            } else if (botDifficulty == BotDifficulty.MEDIUM) {
+                tryActivateBotUtilitySkills();
+            }
+        } else {
+            handleSkillInput(keySetting.getKeySkill1(), skillSlots[0]);
+            handleSkillInput(keySetting.getKeySkill2(), skillSlots[1]);
+        }
 
         speed = applySlowDebuff(desiredSpeed);
 
-        Direction inputDirection = readInputDirection();
+        Direction inputDirection = intent.moveDirection;
         boolean movedThisTick = false;
 
         if (currentTrap != null && !currentTrap.isExpired()) {
@@ -287,14 +372,1189 @@ public class Tank extends GameObject {
             }
             direction = inputDirection;
             movedThisTick = movePixelByPixel(direction, speed);
+            if (isBot && !movedThisTick) {
+                botMoveTicksRemaining = 0;
+            }
         } else if (state == TankState.MOVING) {
             state = TankState.IDLE;
         }
 
         updateSlowTrailState(movedThisTick);
 
-        if (keyH.isPressed(keySetting.getKeyShoot()) && shotCooldown == 0) {
+        if (intent.shoot && shotCooldown == 0) {
             shoot();
+        }
+    }
+
+    private ControlIntent buildHumanIntent() {
+        ControlIntent intent = new ControlIntent();
+        intent.moveDirection = readInputDirection();
+        intent.shoot = keyH.isPressed(keySetting.getKeyShoot());
+        intent.dash = keyH.isPressed(keySetting.getKeyDash());
+        return intent;
+    }
+
+    private ControlIntent buildEasyBotIntent() {
+        ControlIntent intent = new ControlIntent();
+        Direction incomingDirection = detectIncomingBulletDirection(EASY_BOT_DANGER_RADIUS);
+
+        if (incomingDirection != Direction.NONE) {
+            Direction opposite = getOppositeDirection(incomingDirection);
+            if (!isDirectionBlocked(opposite)) {
+                botMoveDirection = opposite;
+            } else {
+                botMoveDirection = randomDirectionExcluding(opposite);
+            }
+            botMoveTicksRemaining = 8 + random.nextInt(16);
+        } else {
+            if (botMoveTicksRemaining <= 0 || isDirectionBlocked(botMoveDirection)) {
+                botMoveDirection = randomDirectionExcluding(Direction.NONE);
+                botMoveTicksRemaining = EASY_BOT_MIN_WALK_TICKS
+                        + random.nextInt(EASY_BOT_MAX_WALK_TICKS - EASY_BOT_MIN_WALK_TICKS + 1);
+            }
+            botMoveTicksRemaining--;
+        }
+
+        // Panic dash wastes fuel aggressively and can slam into walls.
+        if (botDashTicksRemaining <= 0
+                && currentFuel > 0
+                && (currentHealth <= EASY_BOT_LOW_HP_THRESHOLD || incomingDirection != Direction.NONE)
+                && random.nextFloat() < 0.35f) {
+            botDashTicksRemaining = 40 + random.nextInt(81);
+        }
+
+        intent.moveDirection = botMoveDirection;
+        intent.dash = botDashTicksRemaining > 0 && currentFuel > 0;
+        intent.shoot = incomingDirection != Direction.NONE || random.nextFloat() < EASY_BOT_RANDOM_SHOOT_CHANCE;
+
+        if (intent.dash) {
+            botDashTicksRemaining--;
+        }
+
+        return intent;
+    }
+
+    private ControlIntent buildMediumBotIntent() {
+        ControlIntent intent = new ControlIntent();
+        Point selfTile = getCurrentTile();
+        Tank nearestEnemy = findNearestEnemyTank(selfTile);
+        Point nearestEnemyTile = nearestEnemy == null ? null : toTileCenter(nearestEnemy.getSolidArea());
+        int enemyDistance = nearestEnemyTile == null ? -1 : manhattanDistance(selfTile, nearestEnemyTile);
+
+        int chaseHpThreshold = Math.max(1, (int) Math.ceil(Config.MAX_HEALTH * MEDIUM_BOT_CHASE_HP_RATIO));
+        boolean isLowHp = currentHealth <= chaseHpThreshold;
+        boolean shouldRetreat = nearestEnemyTile != null && currentHealth <= chaseHpThreshold;
+        boolean shouldChase = shouldChaseEnemy(enemyDistance, chaseHpThreshold);
+
+        Point retreatTarget = shouldRetreat ? findRetreatTargetTile(selfTile, nearestEnemyTile) : null;
+        Point itemTarget = isLowHp
+                ? findBestHealthItemTile(selfTile, nearestEnemyTile)
+                : ((!shouldRetreat && hasEmptySkillSlot()) ? findNearestItemTile(selfTile) : null);
+        Point enemyTarget = shouldChase ? findStandoffTargetTile(selfTile, nearestEnemyTile, MEDIUM_BOT_CHASE_RADIUS_TILES) : null;
+        if (shouldChase && enemyTarget == null) {
+            enemyTarget = nearestEnemyTile;
+        }
+
+        Point desiredTarget = isLowHp
+                ? (itemTarget != null ? itemTarget : retreatTarget)
+                : (retreatTarget != null ? retreatTarget : (itemTarget != null ? itemTarget : enemyTarget));
+        botTargetIsItem = desiredTarget != null && desiredTarget.equals(itemTarget);
+
+        if (desiredTarget != null) {
+            boolean targetChanged = botTargetTile == null || !botTargetTile.equals(desiredTarget);
+            if (targetChanged || botRepathTicks <= 0 || botPathIndex >= botPathTiles.size()) {
+                botTargetTile = desiredTarget;
+                rebuildPath(selfTile, desiredTarget);
+                botRepathTicks = MEDIUM_BOT_REPATH_TICKS;
+            } else {
+                botRepathTicks--;
+            }
+        } else {
+            botTargetTile = null;
+            botPathTiles.clear();
+            botPathIndex = 0;
+        }
+
+        Direction moveDirection = nextDirectionFromPath(selfTile);
+        if (moveDirection == Direction.NONE) {
+            moveDirection = randomDirectionExcluding(Direction.NONE);
+        }
+        botMoveDirection = moveDirection;
+        intent.moveDirection = botMoveDirection;
+
+        Tank losEnemy = findLineOfSightEnemy(selfTile);
+        if (losEnemy != null) {
+            Point enemyTile = toTileCenter(losEnemy.getSolidArea());
+            Direction attackDirection = directionToTargetTile(selfTile, enemyTile);
+            if (attackDirection != Direction.NONE) {
+                direction = attackDirection;
+                intent.shoot = true;
+            }
+        }
+
+        if (botTargetIsItem && botTargetTile != null && currentFuel > 0) {
+            int myItemDistance = manhattanDistance(selfTile, botTargetTile);
+            int nearestEnemyDistance = nearestEnemyDistanceToTile(botTargetTile);
+            boolean raceCondition = nearestEnemyDistance >= 0 && nearestEnemyDistance <= myItemDistance + 1;
+            boolean closeItem = myItemDistance <= MEDIUM_BOT_DASH_ITEM_RADIUS_TILES;
+            if (raceCondition && closeItem) {
+                botDashTicksRemaining = Math.max(botDashTicksRemaining, 12);
+            }
+        }
+
+        if (shouldRetreat && currentFuel > 0 && enemyDistance >= 0 && enemyDistance <= MEDIUM_BOT_SHIELD_RADIUS_TILES) {
+            botDashTicksRemaining = Math.max(botDashTicksRemaining, 10);
+        }
+
+        intent.dash = botDashTicksRemaining > 0 && currentFuel > 0;
+        if (intent.dash && random.nextFloat() < 0.75f) {
+            botDashTicksRemaining--;
+        }
+
+        return intent;
+    }
+
+    private ControlIntent buildHardBotIntent() {
+        ControlIntent intent = new ControlIntent();
+        Point selfTile = getCurrentTile();
+        Tank nearestEnemy = findNearestEnemyTank(selfTile);
+        Point enemyTile = nearestEnemy == null ? null : toTileCenter(nearestEnemy.getSolidArea());
+        Point predictedEnemyTile = predictEnemyFutureTile(nearestEnemy, enemyTile);
+
+        int hpThreshold = Math.max(1, (int) Math.ceil(Config.MAX_HEALTH * HARD_BOT_RETREAT_HP_RATIO));
+        boolean lowHp = currentHealth <= hpThreshold;
+
+        BulletThreat imminentThreat = detectImminentBulletThreat(selfTile, HARD_BOT_JUST_FRAME_TILE_DISTANCE + 1);
+        if (imminentThreat != null && imminentThreat.distanceTiles <= HARD_BOT_JUST_FRAME_TILE_DISTANCE) {
+            if (tryActivateBotSkill(SkillType.SHIELD, true)) {
+                // just-frame shield
+            }
+            if (canSpendFuel(1)) {
+                intent.dash = true;
+            }
+        }
+
+        if (lowHp) {
+            Point healthTile = findBestHealthItemTile(selfTile, enemyTile);
+            Point retreatTile = enemyTile == null ? null : findRetreatTargetTile(selfTile, enemyTile);
+            Point target = healthTile != null ? healthTile : retreatTile;
+            botTargetIsItem = target != null && target.equals(healthTile);
+            updateHardPathAndMove(target, selfTile, intent);
+            if (enemyTile != null && canSpendFuel(1) && manhattanDistance(selfTile, enemyTile) <= MEDIUM_BOT_SHIELD_RADIUS_TILES) {
+                intent.dash = true;
+            }
+        } else {
+            Point standoffTarget = enemyTile == null ? null : findStandoffTargetTile(selfTile, enemyTile, HARD_BOT_ATTACK_STANDOFF_DISTANCE);
+            Point skillItemTarget = hasEmptySkillSlot() ? findNearestItemTile(selfTile) : null;
+            Point target = standoffTarget != null ? standoffTarget : skillItemTarget;
+            botTargetIsItem = target != null && target.equals(skillItemTarget);
+            updateHardPathAndMove(target, selfTile, intent);
+
+            if (enemyTile != null && canSpendFuel(1)) {
+                int engageDistance = manhattanDistance(selfTile, enemyTile);
+                if (engageDistance > HARD_BOT_ATTACK_STANDOFF_DISTANCE + 1) {
+                    intent.dash = true;
+                }
+            }
+        }
+
+        if (enemyTile != null) {
+            Direction dodgeDirection = chooseDodgeDirectionAlphaBeta(selfTile, HARD_BOT_DODGE_DEPTH);
+            if (dodgeDirection != Direction.NONE && imminentThreat != null && imminentThreat.distanceTiles <= HARD_BOT_JUST_FRAME_TILE_DISTANCE + 1) {
+                intent.moveDirection = dodgeDirection;
+            }
+        }
+
+        if (nearestEnemy != null) {
+            tryHardComboSkills(nearestEnemy, enemyTile);
+        }
+
+        Point shootingTile = predictedEnemyTile != null ? predictedEnemyTile : enemyTile;
+        if (shootingTile != null && hasLineOfSightToTile(selfTile, shootingTile)) {
+            Direction attackDirection = directionToTargetTile(selfTile, shootingTile);
+            if (attackDirection != Direction.NONE) {
+                direction = attackDirection;
+                intent.shoot = true;
+            }
+        } else {
+            Tank losEnemy = findLineOfSightEnemy(selfTile);
+            if (losEnemy != null) {
+                Point losTile = toTileCenter(losEnemy.getSolidArea());
+                Direction attackDirection = directionToTargetTile(selfTile, losTile);
+                if (attackDirection != Direction.NONE) {
+                    direction = attackDirection;
+                    intent.shoot = true;
+                }
+            }
+        }
+
+        // Keep reserve fuel unless it is an imminent survival case.
+        if (intent.dash && !canSpendFuel(1) && (imminentThreat == null || imminentThreat.distanceTiles > HARD_BOT_JUST_FRAME_TILE_DISTANCE)) {
+            intent.dash = false;
+        }
+
+        return intent;
+    }
+
+    private void updateHardPathAndMove(Point target, Point selfTile, ControlIntent intent) {
+        if (target != null) {
+            boolean targetChanged = botTargetTile == null || !botTargetTile.equals(target);
+            if (targetChanged || botRepathTicks <= 0 || botPathIndex >= botPathTiles.size()) {
+                botTargetTile = target;
+                rebuildPathAStar(selfTile, target);
+                botRepathTicks = MEDIUM_BOT_REPATH_TICKS;
+            } else {
+                botRepathTicks--;
+            }
+        } else {
+            botTargetTile = null;
+            botPathTiles.clear();
+            botPathIndex = 0;
+        }
+
+        Direction moveDirection = nextDirectionFromPath(selfTile);
+        if (moveDirection == Direction.NONE) {
+            moveDirection = randomDirectionExcluding(Direction.NONE);
+        }
+        botMoveDirection = moveDirection;
+        intent.moveDirection = botMoveDirection;
+    }
+
+    private boolean shouldChaseEnemy(int enemyDistance, int chaseHpThreshold) {
+        return currentHealth > chaseHpThreshold
+                && enemyDistance >= 0;
+    }
+
+    private Point findStandoffTargetTile(Point selfTile, Point enemyTile, int desiredDistance) {
+        if (selfTile == null || enemyTile == null) {
+            return null;
+        }
+
+        Point best = null;
+        int bestScore = Integer.MAX_VALUE;
+
+        for (int col = 0; col < Config.MAX_SCREEN_COL; col++) {
+            for (int row = 0; row < Config.MAX_SCREEN_ROW; row++) {
+                if (!isTileWalkable(col, row, null)) {
+                    continue;
+                }
+
+                int distanceToEnemy = manhattanDistance(col, row, enemyTile.x, enemyTile.y);
+                if (distanceToEnemy != desiredDistance) {
+                    continue;
+                }
+
+                int distanceToSelf = manhattanDistance(col, row, selfTile.x, selfTile.y);
+                if (distanceToSelf < bestScore) {
+                    bestScore = distanceToSelf;
+                    best = new Point(col, row);
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private Point findRetreatTargetTile(Point selfTile, Point enemyTile) {
+        if (selfTile == null || enemyTile == null) {
+            return null;
+        }
+
+        Point best = null;
+        int bestScore = Integer.MIN_VALUE;
+        int currentEnemyDistance = manhattanDistance(selfTile, enemyTile);
+
+        for (int col = 0; col < Config.MAX_SCREEN_COL; col++) {
+            for (int row = 0; row < Config.MAX_SCREEN_ROW; row++) {
+                Point candidate = new Point(col, row);
+                int selfDistance = manhattanDistance(selfTile, candidate);
+                if (selfDistance <= 0 || selfDistance > MEDIUM_BOT_RETREAT_SCAN_RADIUS_TILES) {
+                    continue;
+                }
+                if (!isTileWalkable(col, row, null)) {
+                    continue;
+                }
+
+                int enemyDistance = manhattanDistance(enemyTile, candidate);
+                if (enemyDistance <= currentEnemyDistance) {
+                    continue;
+                }
+
+                int score = enemyDistance * 10 - selfDistance;
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = candidate;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private boolean hasEmptySkillSlot() {
+        for (SkillType skill : skillSlots) {
+            if (skill == SkillType.NONE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void tryActivateEasyPanicShield() {
+        if (hasShield || currentHealth > EASY_BOT_LOW_HP_THRESHOLD) {
+            return;
+        }
+
+        for (int i = 0; i < skillSlots.length; i++) {
+            if (skillSlots[i] != SkillType.SHIELD) {
+                continue;
+            }
+            if (currentFuel < SkillType.SHIELD.getFuelCost()) {
+                return;
+            }
+            if (!canActivateSkill(SkillType.SHIELD)) {
+                return;
+            }
+
+            currentFuel -= SkillType.SHIELD.getFuelCost();
+            SkillType.SHIELD.activate(this);
+            skillSlots[i] = SkillType.NONE;
+            refreshSkillSlotIcons();
+            return;
+        }
+    }
+
+    private void tryActivateBotUtilitySkills() {
+        if (hasShield) {
+            return;
+        }
+
+        int shieldHealthThreshold = Math.max(1, (int) Math.ceil(Config.MAX_HEALTH * MEDIUM_BOT_SHIELD_HP_RATIO));
+        if (currentHealth > shieldHealthThreshold) {
+            return;
+        }
+
+        Point selfTile = getCurrentTile();
+        Tank nearestEnemy = findNearestEnemyTank(selfTile);
+        if (nearestEnemy == null) {
+            return;
+        }
+
+        int enemyDistance = manhattanDistance(selfTile, toTileCenter(nearestEnemy.getSolidArea()));
+        if (enemyDistance > MEDIUM_BOT_SHIELD_RADIUS_TILES) {
+            return;
+        }
+
+        for (int i = 0; i < skillSlots.length; i++) {
+            if (skillSlots[i] != SkillType.SHIELD) {
+                continue;
+            }
+            if (currentFuel < SkillType.SHIELD.getFuelCost()) {
+                return;
+            }
+            if (!canActivateSkill(SkillType.SHIELD)) {
+                return;
+            }
+
+            currentFuel -= SkillType.SHIELD.getFuelCost();
+            SkillType.SHIELD.activate(this);
+            skillSlots[i] = SkillType.NONE;
+            refreshSkillSlotIcons();
+            return;
+        }
+    }
+
+    private void rebuildPath(Point startTile, Point targetTile) {
+        botPathTiles.clear();
+        botPathTiles.addAll(bestFirstPath(startTile, targetTile));
+        botPathIndex = 0;
+    }
+
+    private void rebuildPathAStar(Point startTile, Point targetTile) {
+        botPathTiles.clear();
+        botPathTiles.addAll(aStarPath(startTile, targetTile));
+        botPathIndex = 0;
+    }
+
+    private List<Point> aStarPath(Point startTile, Point targetTile) {
+        List<Point> empty = new ArrayList<>();
+        if (startTile == null || targetTile == null || startTile.equals(targetTile)) {
+            return empty;
+        }
+
+        int cols = Config.MAX_SCREEN_COL;
+        int rows = Config.MAX_SCREEN_ROW;
+        int[][] gScore = new int[cols][rows];
+        boolean[][] visited = new boolean[cols][rows];
+        Point[][] parent = new Point[cols][rows];
+        for (int x = 0; x < cols; x++) {
+            for (int y = 0; y < rows; y++) {
+                gScore[x][y] = Integer.MAX_VALUE;
+            }
+        }
+
+        PriorityQueue<AStarNode> openSet = new PriorityQueue<>(Comparator.comparingInt(n -> n.fScore));
+        gScore[startTile.x][startTile.y] = 0;
+        openSet.add(new AStarNode(startTile.x, startTile.y, manhattanDistance(startTile, targetTile)));
+
+        int[] dx = {0, 1, 0, -1};
+        int[] dy = {-1, 0, 1, 0};
+
+        while (!openSet.isEmpty()) {
+            AStarNode current = openSet.poll();
+            if (!isValidTile(current.x, current.y) || visited[current.x][current.y]) {
+                continue;
+            }
+            visited[current.x][current.y] = true;
+
+            if (current.x == targetTile.x && current.y == targetTile.y) {
+                return reconstructPath(startTile, targetTile, parent);
+            }
+
+            for (int i = 0; i < 4; i++) {
+                int nx = current.x + dx[i];
+                int ny = current.y + dy[i];
+                if (!isTileWalkable(nx, ny, targetTile)) {
+                    continue;
+                }
+                int tentativeG = gScore[current.x][current.y] + 1;
+                if (tentativeG >= gScore[nx][ny]) {
+                    continue;
+                }
+
+                gScore[nx][ny] = tentativeG;
+                parent[nx][ny] = new Point(current.x, current.y);
+                int fScore = tentativeG + manhattanDistance(nx, ny, targetTile.x, targetTile.y);
+                openSet.add(new AStarNode(nx, ny, fScore));
+            }
+        }
+
+        return empty;
+    }
+
+    private List<Point> bestFirstPath(Point startTile, Point targetTile) {
+        List<Point> empty = new ArrayList<>();
+        if (startTile == null || targetTile == null) {
+            return empty;
+        }
+        if (startTile.equals(targetTile)) {
+            return empty;
+        }
+
+        boolean[][] visited = new boolean[Config.MAX_SCREEN_COL][Config.MAX_SCREEN_ROW];
+        Point[][] parent = new Point[Config.MAX_SCREEN_COL][Config.MAX_SCREEN_ROW];
+        PriorityQueue<PathNode> openSet = new PriorityQueue<>(Comparator.comparingInt(node -> node.heuristic));
+        openSet.add(new PathNode(startTile.x, startTile.y, manhattanDistance(startTile, targetTile)));
+
+        int[] dx = {0, 1, 0, -1};
+        int[] dy = {-1, 0, 1, 0};
+
+        while (!openSet.isEmpty()) {
+            PathNode current = openSet.poll();
+            if (!isValidTile(current.x, current.y) || visited[current.x][current.y]) {
+                continue;
+            }
+
+            visited[current.x][current.y] = true;
+            if (current.x == targetTile.x && current.y == targetTile.y) {
+                return reconstructPath(startTile, targetTile, parent);
+            }
+
+            for (int i = 0; i < 4; i++) {
+                int nextX = current.x + dx[i];
+                int nextY = current.y + dy[i];
+                if (!isTileWalkable(nextX, nextY, targetTile)) {
+                    continue;
+                }
+                if (!isValidTile(nextX, nextY) || visited[nextX][nextY]) {
+                    continue;
+                }
+
+                if (parent[nextX][nextY] == null) {
+                    parent[nextX][nextY] = new Point(current.x, current.y);
+                }
+                openSet.add(new PathNode(nextX, nextY, manhattanDistance(nextX, nextY, targetTile.x, targetTile.y)));
+            }
+        }
+
+        return empty;
+    }
+
+    private List<Point> reconstructPath(Point startTile, Point targetTile, Point[][] parent) {
+        List<Point> reversed = new ArrayList<>();
+        Point current = new Point(targetTile);
+
+        while (!current.equals(startTile)) {
+            reversed.add(new Point(current));
+            Point prev = parent[current.x][current.y];
+            if (prev == null) {
+                return new ArrayList<>();
+            }
+            current = prev;
+        }
+
+        Collections.reverse(reversed);
+        return reversed;
+    }
+
+    private Direction nextDirectionFromPath(Point selfTile) {
+        if (botPathTiles.isEmpty()) {
+            return Direction.NONE;
+        }
+
+        while (botPathIndex < botPathTiles.size()) {
+            Point nextTile = botPathTiles.get(botPathIndex);
+            if (nextTile.equals(selfTile)) {
+                botPathIndex++;
+                continue;
+            }
+
+            Direction nextDirection = directionToTargetTile(selfTile, nextTile);
+            if (nextDirection == Direction.NONE) {
+                botPathIndex++;
+                continue;
+            }
+
+            if (isDirectionBlocked(nextDirection)) {
+                botPathTiles.clear();
+                botPathIndex = 0;
+                return Direction.NONE;
+            }
+
+            return nextDirection;
+        }
+
+        return Direction.NONE;
+    }
+
+    private Point findNearestItemTile(Point fromTile) {
+        Point best = null;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (Item item : gp.itemList) {
+            Point itemTile = toTileCenter(item.getSolidArea());
+            int distance = manhattanDistance(fromTile, itemTile);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = itemTile;
+            }
+        }
+
+        return best;
+    }
+
+    private Point findBestHealthItemTile(Point selfTile, Point enemyTile) {
+        Point best = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Item item : gp.itemList) {
+            if (item.getItemType() != Item.ItemType.HEALTH) {
+                continue;
+            }
+
+            Point itemTile = toTileCenter(item.getSolidArea());
+            int selfDistance = manhattanDistance(selfTile, itemTile);
+            int enemyDistance = enemyTile == null ? MEDIUM_BOT_RETREAT_SCAN_RADIUS_TILES : manhattanDistance(enemyTile, itemTile);
+
+            // Prioritize safety first (farther from enemy), then approach cost.
+            int score = enemyDistance * 100 - selfDistance;
+            if (score > bestScore) {
+                bestScore = score;
+                best = itemTile;
+            }
+        }
+
+        return best;
+    }
+
+    private Point predictEnemyFutureTile(Tank enemy, Point enemyTile) {
+        if (enemy == null || enemyTile == null) {
+            return null;
+        }
+
+        Point previous = observedEnemyTiles.get(enemy);
+        observedEnemyTiles.put(enemy, new Point(enemyTile));
+        if (previous == null) {
+            return enemyTile;
+        }
+
+        int vx = enemyTile.x - previous.x;
+        int vy = enemyTile.y - previous.y;
+        int steps = Math.max(1, HARD_BOT_PREDICTION_TICKS / Math.max(1, Config.FPS / 2));
+        int predictedX = enemyTile.x + vx * steps;
+        int predictedY = enemyTile.y + vy * steps;
+        predictedX = Math.max(0, Math.min(Config.MAX_SCREEN_COL - 1, predictedX));
+        predictedY = Math.max(0, Math.min(Config.MAX_SCREEN_ROW - 1, predictedY));
+        return new Point(predictedX, predictedY);
+    }
+
+    private boolean hasLineOfSightToTile(Point fromTile, Point targetTile) {
+        if (fromTile == null || targetTile == null) {
+            return false;
+        }
+        if (!isSameRowOrColumn(fromTile, targetTile)) {
+            return false;
+        }
+        return !isSteelWallBlockingLine(fromTile, targetTile);
+    }
+
+    private void tryHardComboSkills(Tank enemy, Point enemyTile) {
+        if (enemy == null || enemyTile == null) {
+            return;
+        }
+
+        int enemyDistance = manhattanDistance(getCurrentTile(), enemyTile);
+        boolean enemyInCorner = isNearCorner(enemyTile) || isNarrowAround(enemy.getSolidArea()) || enemyDistance <= 4;
+        if (!enemyInCorner) {
+            return;
+        }
+
+        tryActivateBotSkill(SkillType.SLOW, false);
+        if (hasLineOfSightToTile(getCurrentTile(), enemyTile)) {
+            tryActivateBotSkill(SkillType.TOXIC, false);
+        }
+    }
+
+    private boolean isNearCorner(Point tile) {
+        return tile.x <= 1 || tile.y <= 1 || tile.x >= Config.MAX_SCREEN_COL - 2 || tile.y >= Config.MAX_SCREEN_ROW - 2;
+    }
+
+    private boolean isNarrowAround(Rectangle area) {
+        Point center = toTileCenter(area);
+        int blocked = 0;
+        int[] dx = {0, 1, 0, -1};
+        int[] dy = {-1, 0, 1, 0};
+        for (int i = 0; i < 4; i++) {
+            int nx = center.x + dx[i];
+            int ny = center.y + dy[i];
+            if (!isTileWalkable(nx, ny, null)) {
+                blocked++;
+            }
+        }
+        return blocked >= 2;
+    }
+
+    private boolean tryActivateBotSkill(SkillType desiredSkill, boolean critical) {
+        if (desiredSkill == null || desiredSkill == SkillType.NONE) {
+            return false;
+        }
+
+        for (int i = 0; i < skillSlots.length; i++) {
+            if (skillSlots[i] != desiredSkill) {
+                continue;
+            }
+
+            int cost = desiredSkill.getFuelCost();
+            if (!critical && !canSpendFuel(cost)) {
+                return false;
+            }
+            if (currentFuel < cost || !canActivateSkill(desiredSkill)) {
+                return false;
+            }
+
+            currentFuel -= cost;
+            desiredSkill.activate(this);
+            skillSlots[i] = SkillType.NONE;
+            refreshSkillSlotIcons();
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean canSpendFuel(int amount) {
+        return currentFuel - Math.max(0, amount) >= HARD_BOT_FUEL_RESERVE;
+    }
+
+    private BulletThreat detectImminentBulletThreat(Point selfTile, int maxDistanceTiles) {
+        if (selfTile == null) {
+            return null;
+        }
+
+        BulletThreat best = null;
+        for (Bullet bullet : gp.getBulletList()) {
+            if (!bullet.isAlive() || bullet.getOwner() == this) {
+                continue;
+            }
+
+            Point bulletTile = toTileCenter(bullet.getSolidArea());
+            Direction dir = bullet.getDirection();
+            int distance = incomingDistanceTiles(selfTile, bulletTile, dir);
+            if (distance < 0 || distance > maxDistanceTiles) {
+                continue;
+            }
+
+            if (best == null || distance < best.distanceTiles) {
+                best = new BulletThreat(dir, distance, bulletTile);
+            }
+        }
+
+        return best;
+    }
+
+    private Direction detectIncomingBulletDirection(int detectionRadiusPixels) {
+        int centerX = solidArea.x + solidArea.width / 2;
+        int centerY = solidArea.y + solidArea.height / 2;
+        int radiusSq = detectionRadiusPixels * detectionRadiusPixels;
+        int axisTolerance = Math.max(8, gp.tileSize / 3);
+
+        for (Bullet bullet : gp.getBulletList()) {
+            if (!bullet.isAlive() || bullet.getOwner() == this) {
+                continue;
+            }
+
+            Rectangle bulletArea = bullet.getSolidArea();
+            int bx = bulletArea.x + bulletArea.width / 2;
+            int by = bulletArea.y + bulletArea.height / 2;
+            int dx = centerX - bx;
+            int dy = centerY - by;
+            if (dx * dx + dy * dy > radiusSq) {
+                continue;
+            }
+
+            Direction bd = bullet.getDirection();
+            switch (bd) {
+                case UP:
+                    if (by > centerY && Math.abs(bx - centerX) <= axisTolerance) {
+                        return bd;
+                    }
+                    break;
+                case DOWN:
+                    if (by < centerY && Math.abs(bx - centerX) <= axisTolerance) {
+                        return bd;
+                    }
+                    break;
+                case LEFT:
+                    if (bx > centerX && Math.abs(by - centerY) <= axisTolerance) {
+                        return bd;
+                    }
+                    break;
+                case RIGHT:
+                    if (bx < centerX && Math.abs(by - centerY) <= axisTolerance) {
+                        return bd;
+                    }
+                    break;
+                case NONE:
+                    break;
+            }
+        }
+
+        return Direction.NONE;
+    }
+
+    private int incomingDistanceTiles(Point selfTile, Point bulletTile, Direction bulletDirection) {
+        if (selfTile == null || bulletTile == null || bulletDirection == Direction.NONE) {
+            return -1;
+        }
+
+        switch (bulletDirection) {
+            case UP:
+                if (bulletTile.x == selfTile.x && bulletTile.y > selfTile.y) {
+                    return bulletTile.y - selfTile.y;
+                }
+                break;
+            case DOWN:
+                if (bulletTile.x == selfTile.x && bulletTile.y < selfTile.y) {
+                    return selfTile.y - bulletTile.y;
+                }
+                break;
+            case LEFT:
+                if (bulletTile.y == selfTile.y && bulletTile.x > selfTile.x) {
+                    return bulletTile.x - selfTile.x;
+                }
+                break;
+            case RIGHT:
+                if (bulletTile.y == selfTile.y && bulletTile.x < selfTile.x) {
+                    return selfTile.x - bulletTile.x;
+                }
+                break;
+            case NONE:
+                break;
+        }
+
+        return -1;
+    }
+
+    private Direction chooseDodgeDirectionAlphaBeta(Point selfTile, int depth) {
+        List<Direction> actions = possibleActions(selfTile);
+        double bestScore = Double.NEGATIVE_INFINITY;
+        Direction bestDirection = Direction.NONE;
+
+        for (Direction action : actions) {
+            Point next = simulateStep(selfTile, action);
+            double score = alphaBeta(next, depth - 1, false, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+            if (score > bestScore) {
+                bestScore = score;
+                bestDirection = action;
+            }
+        }
+
+        return bestDirection;
+    }
+
+    private double alphaBeta(Point stateTile, int depth, boolean maximizing, double alpha, double beta) {
+        if (depth <= 0) {
+            return evaluateTileSafety(stateTile);
+        }
+
+        if (maximizing) {
+            double value = Double.NEGATIVE_INFINITY;
+            for (Direction action : possibleActions(stateTile)) {
+                value = Math.max(value, alphaBeta(simulateStep(stateTile, action), depth - 1, false, alpha, beta));
+                alpha = Math.max(alpha, value);
+                if (alpha >= beta) {
+                    break;
+                }
+            }
+            return value;
+        }
+
+        // Adversarial step: assume bullets advance to minimize safety.
+        double value = Double.POSITIVE_INFINITY;
+        for (Direction action : possibleActions(stateTile)) {
+            value = Math.min(value, alphaBeta(simulateStep(stateTile, action), depth - 1, true, alpha, beta) - projectedBulletRisk(stateTile));
+            beta = Math.min(beta, value);
+            if (alpha >= beta) {
+                break;
+            }
+        }
+        return value;
+    }
+
+    private List<Direction> possibleActions(Point tile) {
+        List<Direction> result = new ArrayList<>();
+        if (tile == null) {
+            return result;
+        }
+
+        Direction[] dirs = {Direction.UP, Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.NONE};
+        for (Direction dir : dirs) {
+            Point next = simulateStep(tile, dir);
+            if (next != null) {
+                result.add(dir);
+            }
+        }
+        return result;
+    }
+
+    private Point simulateStep(Point tile, Direction directionStep) {
+        if (tile == null) {
+            return null;
+        }
+        int nx = tile.x;
+        int ny = tile.y;
+        switch (directionStep) {
+            case UP -> ny--;
+            case DOWN -> ny++;
+            case LEFT -> nx--;
+            case RIGHT -> nx++;
+            case NONE -> {
+            }
+        }
+
+        if (directionStep == Direction.NONE) {
+            return tile;
+        }
+
+        return isTileWalkable(nx, ny, null) ? new Point(nx, ny) : null;
+    }
+
+    private double evaluateTileSafety(Point tile) {
+        if (tile == null) {
+            return -1000;
+        }
+
+        double score = 0;
+        for (Bullet bullet : gp.getBulletList()) {
+            if (!bullet.isAlive() || bullet.getOwner() == this) {
+                continue;
+            }
+            Point bulletTile = toTileCenter(bullet.getSolidArea());
+            int distance = manhattanDistance(tile, bulletTile);
+            score -= 10.0 / Math.max(1, distance);
+        }
+
+        Tank enemy = findNearestEnemyTank(tile);
+        if (enemy != null) {
+            Point enemyTile = toTileCenter(enemy.getSolidArea());
+            int dist = manhattanDistance(tile, enemyTile);
+            score -= Math.abs(dist - HARD_BOT_STANDOFF_DISTANCE) * 0.4;
+        }
+
+        return score;
+    }
+
+    private double projectedBulletRisk(Point tile) {
+        if (tile == null) {
+            return 0;
+        }
+        double risk = 0;
+        for (Bullet bullet : gp.getBulletList()) {
+            if (!bullet.isAlive() || bullet.getOwner() == this) {
+                continue;
+            }
+            Point b = toTileCenter(bullet.getSolidArea());
+            int distance = incomingDistanceTiles(tile, b, bullet.getDirection());
+            if (distance >= 0 && distance <= 3) {
+                risk += (4 - distance);
+            }
+        }
+        return risk;
+    }
+
+    private Point findNearestEnemyTile(Point fromTile) {
+        Tank enemy = findNearestEnemyTank(fromTile);
+        if (enemy == null) {
+            return null;
+        }
+        return toTileCenter(enemy.getSolidArea());
+    }
+
+    private Tank findNearestEnemyTank(Point fromTile) {
+        Tank bestTank = null;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (Tank tank : gp.getTankList()) {
+            if (tank == this || tank.isPendingRemoval()) {
+                continue;
+            }
+            if (tank.getState() == TankState.DYING || tank.getState() == TankState.DEAD) {
+                continue;
+            }
+
+            int distance = manhattanDistance(fromTile, toTileCenter(tank.getSolidArea()));
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestTank = tank;
+            }
+        }
+
+        return bestTank;
+    }
+
+    private Tank findLineOfSightEnemy(Point selfTile) {
+        Tank bestEnemy = null;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (Tank tank : gp.getTankList()) {
+            if (tank == this || tank.isPendingRemoval()) {
+                continue;
+            }
+            if (tank.getState() == TankState.DYING || tank.getState() == TankState.DEAD) {
+                continue;
+            }
+
+            Point enemyTile = toTileCenter(tank.getSolidArea());
+            if (!isSameRowOrColumn(selfTile, enemyTile)) {
+                continue;
+            }
+            if (isSteelWallBlockingLine(selfTile, enemyTile)) {
+                continue;
+            }
+
+            int distance = manhattanDistance(selfTile, enemyTile);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestEnemy = tank;
+            }
+        }
+
+        return bestEnemy;
+    }
+
+    private int nearestEnemyDistanceToTile(Point tile) {
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (Tank tank : gp.getTankList()) {
+            if (tank == this || tank.isPendingRemoval()) {
+                continue;
+            }
+            if (tank.getState() == TankState.DYING || tank.getState() == TankState.DEAD) {
+                continue;
+            }
+
+            int distance = manhattanDistance(toTileCenter(tank.getSolidArea()), tile);
+            bestDistance = Math.min(bestDistance, distance);
+        }
+
+        return bestDistance == Integer.MAX_VALUE ? -1 : bestDistance;
+    }
+
+    private Point getCurrentTile() {
+        return toTileCenter(solidArea);
+    }
+
+    private Point toTileCenter(Rectangle area) {
+        int centerX = area.x + area.width / 2;
+        int centerY = area.y + area.height / 2;
+        return new Point(Math.floorDiv(centerX, gp.tileSize), Math.floorDiv(centerY, gp.tileSize));
+    }
+
+    private int manhattanDistance(Point a, Point b) {
+        return manhattanDistance(a.x, a.y, b.x, b.y);
+    }
+
+    private int manhattanDistance(int x1, int y1, int x2, int y2) {
+        return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+    }
+
+    private Direction directionToTargetTile(Point fromTile, Point toTile) {
+        int dx = toTile.x - fromTile.x;
+        int dy = toTile.y - fromTile.y;
+
+        if (Math.abs(dx) >= Math.abs(dy) && dx != 0) {
+            return dx > 0 ? Direction.RIGHT : Direction.LEFT;
+        }
+        if (dy != 0) {
+            return dy > 0 ? Direction.DOWN : Direction.UP;
+        }
+        return Direction.NONE;
+    }
+
+    private Direction randomDirectionExcluding(Direction excludedDirection) {
+        Direction[] allDirections = {Direction.UP, Direction.RIGHT, Direction.DOWN, Direction.LEFT};
+        Direction fallback = Direction.UP;
+        boolean fallbackSet = false;
+
+        for (int attempt = 0; attempt < allDirections.length * 2; attempt++) {
+            Direction candidate = allDirections[random.nextInt(allDirections.length)];
+            if (candidate == excludedDirection) {
+                continue;
+            }
+            if (!isDirectionBlocked(candidate)) {
+                return candidate;
+            }
+            if (!fallbackSet) {
+                fallback = candidate;
+                fallbackSet = true;
+            }
+        }
+
+        return fallbackSet ? fallback : Direction.UP;
+    }
+
+    private boolean isValidTile(int col, int row) {
+        return col >= 0 && row >= 0 && col < Config.MAX_SCREEN_COL && row < Config.MAX_SCREEN_ROW;
+    }
+
+    private boolean isTileWalkable(int col, int row, Point targetTile) {
+        if (!isValidTile(col, row)) {
+            return false;
+        }
+
+        if (targetTile != null && targetTile.x == col && targetTile.y == row) {
+            return true;
+        }
+
+        int tileId = gp.getTileManager().getTileIdAt(col, row);
+        tile.Tile tile = gp.getTileManager().getTile(tileId);
+        if (tile != null && tile.isCollision()) {
+            return false;
+        }
+
+        for (Tank other : gp.getTankList()) {
+            if (other == this || other.isPendingRemoval()) {
+                continue;
+            }
+            if (other.getState() == TankState.DYING || other.getState() == TankState.DEAD) {
+                continue;
+            }
+
+            Point occupied = toTileCenter(other.getSolidArea());
+            if (occupied.x == col && occupied.y == row) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean isSameRowOrColumn(Point a, Point b) {
+        return a.x == b.x || a.y == b.y;
+    }
+
+    private boolean isSteelWallBlockingLine(Point fromTile, Point toTile) {
+        if (fromTile.x == toTile.x) {
+            int col = fromTile.x;
+            int minRow = Math.min(fromTile.y, toTile.y) + 1;
+            int maxRow = Math.max(fromTile.y, toTile.y);
+            for (int row = minRow; row < maxRow; row++) {
+                if (isSteelTile(col, row)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        if (fromTile.y == toTile.y) {
+            int row = fromTile.y;
+            int minCol = Math.min(fromTile.x, toTile.x) + 1;
+            int maxCol = Math.max(fromTile.x, toTile.x);
+            for (int col = minCol; col < maxCol; col++) {
+                if (isSteelTile(col, row)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isSteelTile(int col, int row) {
+        int tileId = gp.getTileManager().getTileIdAt(col, row);
+        tile.Tile tile = gp.getTileManager().getTile(tileId);
+        return tile != null && tile.isBulletCollision() && !tile.isBreakable();
+    }
+
+    private boolean isDirectionBlocked(Direction candidateDirection) {
+        if (candidateDirection == Direction.NONE) {
+            return true;
+        }
+
+        Direction oldDirection = direction;
+        boolean oldCollision = collisionOn;
+        direction = candidateDirection;
+        collisionOn = false;
+        gp.getCollisionChecker().checkTile(this, 1);
+        boolean blocked = collisionOn || gp.getCollisionChecker().willTankCollide(this, candidateDirection, 1);
+        direction = oldDirection;
+        collisionOn = oldCollision;
+        return blocked;
+    }
+
+    private static class PathNode {
+        private final int x;
+        private final int y;
+        private final int heuristic;
+
+        private PathNode(int x, int y, int heuristic) {
+            this.x = x;
+            this.y = y;
+            this.heuristic = heuristic;
+        }
+    }
+
+    private static class AStarNode {
+        private final int x;
+        private final int y;
+        private final int fScore;
+
+        private AStarNode(int x, int y, int fScore) {
+            this.x = x;
+            this.y = y;
+            this.fScore = fScore;
+        }
+    }
+
+    private static class BulletThreat {
+        private final Direction bulletDirection;
+        private final int distanceTiles;
+        private final Point bulletTile;
+
+        private BulletThreat(Direction bulletDirection, int distanceTiles, Point bulletTile) {
+            this.bulletDirection = bulletDirection;
+            this.distanceTiles = distanceTiles;
+            this.bulletTile = bulletTile;
         }
     }
 
@@ -936,8 +2196,6 @@ public class Tank extends GameObject {
             case NONE:
                 break;
         }
-        g2.setColor(java.awt.Color.RED);
-        g2.draw(solidArea);
     }
 
 
@@ -1002,6 +2260,26 @@ public class Tank extends GameObject {
 
     public int getCurrentHealth() {
         return currentHealth;
+    }
+
+    public int restoreHealth(int amount) {
+        if (amount <= 0 || state == TankState.DYING || state == TankState.DEAD) {
+            return 0;
+        }
+
+        int before = currentHealth;
+        currentHealth = Math.min(Config.MAX_HEALTH, currentHealth + amount);
+        return currentHealth - before;
+    }
+
+    public int restoreFuel(int amount) {
+        if (amount <= 0 || state == TankState.DYING || state == TankState.DEAD) {
+            return 0;
+        }
+
+        int before = currentFuel;
+        currentFuel = Math.min(maxFuel, currentFuel + amount);
+        return currentFuel - before;
     }
 
     public int getPlayerNum() {

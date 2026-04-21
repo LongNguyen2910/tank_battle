@@ -65,7 +65,7 @@ public class SettingsDialog extends JDialog {
         addSettingRow(contentPanel, "Max Fuel", createNumericTextField(Config.MAX_FUEL, v -> Config.MAX_FUEL = v));
         
         // Difficulty (Prototype)
-        addSettingRow(contentPanel, "Difficulty", createCycleButton(new String[]{"EASY", "NORMAL", "HARD", "EXTREME"}, Config.DIFFICULTY, s -> Config.DIFFICULTY = s));
+        addSettingRow(contentPanel, "Difficulty", createCycleButton(new String[]{"EASY", "NORMAL", "HARD"}, Config.DIFFICULTY, s -> Config.DIFFICULTY = s));
         
         // Match Time (Prototype)
         addSettingRow(contentPanel, "Match Time (s)", createNumericTextField(Config.MATCH_TIME, v -> Config.MATCH_TIME = v));

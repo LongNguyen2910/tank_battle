@@ -12,6 +12,12 @@ import java.io.InputStream;
 import java.util.Random;
 
 public class Item {
+    public enum ItemType {
+        SKILL_CHEST,
+        HEALTH,
+        ENERGY
+    }
+
     private enum ItemState {
         CLOSED,
         OPENING,
@@ -21,11 +27,16 @@ public class Item {
     private static final int CHEST_DRAW_SIZE = Config.TILE_SIZE;
     private static final int OPENING_TICKS = 14;
     private static final int CLOSED_DESPAWN_TICKS = Config.FPS * 12;
+    private static final int HEALTH_RESTORE_AMOUNT = 30;
+    private static final int ENERGY_RESTORE_AMOUNT = 30;
 
     private final int x;
     private final int y;
     private final Rectangle solidArea;
+    private final ItemType itemType;
     private final BufferedImage[] chestFrames;
+    private final BufferedImage healthIcon;
+    private final BufferedImage energyIcon;
     private final Random random = new Random();
     private ItemState state = ItemState.CLOSED;
     private int openingTick = 0;
@@ -36,7 +47,10 @@ public class Item {
         this.y = y;
         this.solidArea = new Rectangle(x + Config.TILE_SIZE / 4, y + Config.TILE_SIZE / 4,
                 Config.TILE_SIZE / 2, Config.TILE_SIZE / 2);
+        this.itemType = randomItemType();
         this.chestFrames = loadChestFrames();
+        this.healthIcon = loadSprite("/icon/health.png");
+        this.energyIcon = loadSprite("/icon/energy.png");
     }
 
     public void update() {
@@ -59,7 +73,25 @@ public class Item {
     }
 
     public void draw(Graphics2D g2) {
-        if (state == ItemState.CONSUMED || chestFrames.length == 0) {
+        if (state == ItemState.CONSUMED) {
+            return;
+        }
+
+        if (itemType == ItemType.HEALTH) {
+            if (healthIcon != null) {
+                g2.drawImage(healthIcon, x, y, CHEST_DRAW_SIZE, CHEST_DRAW_SIZE, null);
+            }
+            return;
+        }
+
+        if (itemType == ItemType.ENERGY) {
+            if (energyIcon != null) {
+                g2.drawImage(energyIcon, x, y, CHEST_DRAW_SIZE, CHEST_DRAW_SIZE, null);
+            }
+            return;
+        }
+
+        if (chestFrames.length == 0) {
             return;
         }
 
@@ -74,6 +106,24 @@ public class Item {
         }
         if (!solidArea.intersects(tank.getSolidArea())) {
             return false;
+        }
+
+        if (itemType == ItemType.HEALTH) {
+            int restored = tank.restoreHealth(HEALTH_RESTORE_AMOUNT);
+            if (restored <= 0) {
+                return false;
+            }
+            state = ItemState.CONSUMED;
+            return true;
+        }
+
+        if (itemType == ItemType.ENERGY) {
+            int restored = tank.restoreFuel(ENERGY_RESTORE_AMOUNT);
+            if (restored <= 0) {
+                return false;
+            }
+            state = ItemState.CONSUMED;
+            return true;
         }
 
         SkillType reward = randomSkill();
@@ -94,6 +144,10 @@ public class Item {
         return solidArea;
     }
 
+    public ItemType getItemType() {
+        return itemType;
+    }
+
     private SkillType randomSkill() {
         SkillType[] pool = {
                 SkillType.SHIELD,
@@ -104,6 +158,17 @@ public class Item {
                 SkillType.BIG_PHASE_SHOT
         };
         return pool[random.nextInt(pool.length)];
+    }
+
+    private ItemType randomItemType() {
+        int roll = random.nextInt(100);
+        if (roll < 50) {
+            return ItemType.SKILL_CHEST;
+        }
+        if (roll < 75) {
+            return ItemType.HEALTH;
+        }
+        return ItemType.ENERGY;
     }
 
     private BufferedImage[] loadChestFrames() {

@@ -211,8 +211,6 @@ public class Bullet extends GameObject {
                         frameSize * bulletScale, frameSize * bulletScale, null);
                 break;
         }
-        g2.setColor(Color.RED);
-        g2.draw(solidArea);
     }
 
     private void drawImpact(Graphics2D g2) {
