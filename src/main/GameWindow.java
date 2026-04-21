@@ -1,6 +1,6 @@
 package main;
 
-import ui.startingscreen;
+import ui.StartingScreen;
 import javax.swing.*;
 import java.awt.*;
 
@@ -9,7 +9,7 @@ public class GameWindow extends JFrame {
         this.setTitle("Tank Battle");
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         this.setResizable(false);
-        startingscreen menu = new startingscreen();
+        StartingScreen menu = new StartingScreen();
         GamePanel gamePanel = new GamePanel(config);
         gamePanel.setLayout(new BorderLayout());
 

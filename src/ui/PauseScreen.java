@@ -2,41 +2,35 @@ package ui;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.awt.geom.GeneralPath;
 
-public class WinnerOverlay extends JComponent {
+/**
+ * Pause overlay styled like WinnerOverlay: centered panel with two animated buttons
+ * (Resume, Main Menu). Supports keyboard (UP/DOWN/ENTER/ESC) and mouse focus.
+ */
+public class PauseScreen extends JComponent {
 
-    public interface WinnerListener {
-        void onPlayAgain();
-        void onMenu();
+    public interface PauseListener {
+        void onResume();
+        void onQuit();
     }
 
-    private WinnerListener listener;
+    private PauseListener listener;
 
-    private final AnimatedTacticalButton playAgainBtn = new AnimatedTacticalButton("Play Again");
-    private final AnimatedTacticalButton menuBtn = new AnimatedTacticalButton("Menu");
-    private final AnimatedTacticalButton[] buttons = new AnimatedTacticalButton[]{playAgainBtn, menuBtn};
+    private final AnimatedTacticalButton resumeBtn = new AnimatedTacticalButton("Resume");
+    private final AnimatedTacticalButton menuBtn = new AnimatedTacticalButton("Main Menu");
+    private final AnimatedTacticalButton[] buttons = new AnimatedTacticalButton[]{resumeBtn, menuBtn};
     private int currentIndex = 0;
 
-    private String winnerText = "PLAYER 1 WIN";
-
-    public WinnerOverlay() {
+    public PauseScreen() {
         setOpaque(false);
         setLayout(null);
 
-        for (AnimatedTacticalButton b : buttons) {
-            add(b);
-        }
+        for (AnimatedTacticalButton b : buttons) add(b);
 
-        playAgainBtn.addActionListener(e -> {
-            if (listener != null) listener.onPlayAgain();
-        });
-        menuBtn.addActionListener(e -> {
-            if (listener != null) listener.onMenu();
-        });
+        resumeBtn.addActionListener(e -> { if (listener != null) listener.onResume(); });
+        menuBtn.addActionListener(e -> { if (listener != null) listener.onQuit(); });
 
         buttons[0].setTargetFocus(true);
 
@@ -54,16 +48,9 @@ public class WinnerOverlay extends JComponent {
         setVisible(false);
     }
 
-    public void setWinnerListener(WinnerListener l) {
-        this.listener = l;
-    }
+    public void setPauseListener(PauseListener l) { this.listener = l; }
 
-    public void setWinnerText(String text) {
-        this.winnerText = (text == null || text.isBlank()) ? "WIN" : text;
-        repaint();
-    }
-
-    public void runWinner(boolean show) {
+    public void runPause(boolean show) {
         setVisible(show);
         if (show) requestFocusInWindow();
         repaint();
@@ -74,7 +61,7 @@ public class WinnerOverlay extends JComponent {
         int h = getHeight();
 
         int boxW = Math.min(520, (int) (w * 0.62));
-        int boxH = Math.min(320, (int) (h * 0.52));
+        int boxH = Math.min(280, (int) (h * 0.48));
         int boxX = (w - boxW) / 2;
         int boxY = (h - boxH) / 2;
 
@@ -82,10 +69,10 @@ public class WinnerOverlay extends JComponent {
         int btnH = 55;
         int btnX = boxX + (boxW - btnW) / 2;
         int gap = 18;
-        int totalBtnsH = btnH * 2 + gap;
+        int totalBtnsH = btnH * buttons.length + gap * (buttons.length - 1);
         int btnY0 = boxY + boxH - 35 - totalBtnsH;
 
-        playAgainBtn.setBounds(btnX, btnY0, btnW, btnH);
+        resumeBtn.setBounds(btnX, btnY0, btnW, btnH);
         menuBtn.setBounds(btnX, btnY0 + btnH + gap, btnW, btnH);
     }
 
@@ -96,10 +83,10 @@ public class WinnerOverlay extends JComponent {
         im.put(KeyStroke.getKeyStroke("UP"), "moveUp");
         im.put(KeyStroke.getKeyStroke("DOWN"), "moveDown");
         im.put(KeyStroke.getKeyStroke("ENTER"), "select");
+        im.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "resume");
 
         am.put("moveUp", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
+            @Override public void actionPerformed(ActionEvent e) {
                 buttons[currentIndex].setTargetFocus(false);
                 currentIndex = (currentIndex - 1 + buttons.length) % buttons.length;
                 buttons[currentIndex].setTargetFocus(true);
@@ -107,8 +94,7 @@ public class WinnerOverlay extends JComponent {
         });
 
         am.put("moveDown", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
+            @Override public void actionPerformed(ActionEvent e) {
                 buttons[currentIndex].setTargetFocus(false);
                 currentIndex = (currentIndex + 1) % buttons.length;
                 buttons[currentIndex].setTargetFocus(true);
@@ -116,10 +102,11 @@ public class WinnerOverlay extends JComponent {
         });
 
         am.put("select", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                buttons[currentIndex].doClick();
-            }
+            @Override public void actionPerformed(ActionEvent e) { buttons[currentIndex].doClick(); }
+        });
+
+        am.put("resume", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { if (listener != null) listener.onResume(); }
         });
     }
 
@@ -127,8 +114,7 @@ public class WinnerOverlay extends JComponent {
         for (int i = 0; i < buttons.length; i++) {
             final int idx = i;
             buttons[i].addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent e) {
+                @Override public void mouseEntered(MouseEvent e) {
                     if (currentIndex != idx) {
                         buttons[currentIndex].setTargetFocus(false);
                         currentIndex = idx;
@@ -148,41 +134,35 @@ public class WinnerOverlay extends JComponent {
         int w = getWidth();
         int h = getHeight();
 
-        g2.setColor(new Color(0, 0, 0, 140));
-        g2.fillRect(0, 0, w, h);
+        g2.setColor(new Color(0,0,0,140));
+        g2.fillRect(0,0,w,h);
 
         int boxW = Math.min(520, (int) (w * 0.62));
-        int boxH = Math.min(320, (int) (h * 0.52));
+        int boxH = Math.min(280, (int) (h * 0.48));
         int boxX = (w - boxW) / 2;
         int boxY = (h - boxH) / 2;
         int arc = 26;
 
-        g2.setPaint(new GradientPaint(0, boxY, new Color(10, 10, 10, 235), 0, boxY + boxH, new Color(30, 30, 30, 235)));
+        g2.setPaint(new GradientPaint(0, boxY, new Color(10,10,10,235), 0, boxY + boxH, new Color(30,30,30,235)));
         g2.fillRoundRect(boxX, boxY, boxW, boxH, arc, arc);
 
-        g2.setColor(new Color(0, 255, 200, 170));
+        g2.setColor(new Color(0,255,200,170));
         g2.setStroke(new BasicStroke(2.5f));
         g2.drawRoundRect(boxX, boxY, boxW, boxH, arc, arc);
 
-        g2.setFont(new Font("Impact", Font.BOLD, Math.max(40, Math.min(64, boxW / 9))));
+        g2.setFont(new Font("Impact", Font.BOLD, Math.max(28, Math.min(56, boxW / 12))));
         FontMetrics fm = g2.getFontMetrics();
-        int tx = boxX + (boxW - fm.stringWidth(winnerText)) / 2;
-        int ty = boxY + 75;
+        String title = "PAUSED";
+        int tx = boxX + (boxW - fm.stringWidth(title)) / 2;
+        int ty = boxY + 70;
 
-        double time = System.currentTimeMillis() / 260.0;
-        float pulse = (float) ((Math.sin(time) + 1.0) / 2.0);
-        int alpha = (int) (120 + (pulse * 135));
-
-        g2.setColor(new Color(255, 69, 0, alpha));
-        for (int i = 6; i > 0; i -= 2) {
-            g2.drawString(winnerText, tx - i, ty - i);
-            g2.drawString(winnerText, tx + i, ty + i);
-        }
+        g2.setColor(new Color(255,69,0,160));
+        for (int i=6; i>0; i-=2) g2.drawString(title, tx - i, ty - i);
         g2.setColor(Color.WHITE);
-        g2.drawString(winnerText, tx, ty);
+        g2.drawString(title, tx, ty);
 
         g2.setFont(new Font("Monospaced", Font.BOLD, 14));
-        g2.setColor(new Color(0, 255, 200, 190));
+        g2.setColor(new Color(0,255,200,190));
         String hint = "[UP]/[DOWN]  SELECT  //  [ENTER]  CONFIRM";
         int hx = boxX + (boxW - g2.getFontMetrics().stringWidth(hint)) / 2;
         g2.drawString(hint, hx, ty + 28);
@@ -218,15 +198,8 @@ public class WinnerOverlay extends JComponent {
             });
 
             addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent e) {
-                    setTargetFocus(true);
-                }
-
-                @Override
-                public void mouseExited(MouseEvent e) {
-                    setTargetFocus(false);
-                }
+                @Override public void mouseEntered(MouseEvent e) { setTargetFocus(true); }
+                @Override public void mouseExited(MouseEvent e) { setTargetFocus(false); }
             });
         }
 
@@ -274,4 +247,3 @@ public class WinnerOverlay extends JComponent {
         }
     }
 }
-
