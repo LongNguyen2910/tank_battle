@@ -85,6 +85,10 @@ public class Bomb {
         if (!canTrigger() || tank == null) {
             return false;
         }
+        // In team modes, prevent teammates from triggering owner's bomb
+        if (owner != null && owner.getTeamId() != 0 && owner.getTeamId() == tank.getTeamId()) {
+            return false;
+        }
         return tank != owner || ownerImmunityTicks <= 0;
     }
 
@@ -99,7 +103,12 @@ public class Bomb {
         animationTick = 0;
 
         if (tank != null && tank.canBeDamaged()) {
-            tank.takeDamage(EXPLOSION_DAMAGE, explosionCenterX, explosionCenterY);
+            // skip damage for teammates in team modes
+            if (owner != null && owner.getTeamId() != 0 && owner.getTeamId() == tank.getTeamId()) {
+                // do not apply damage to teammate
+            } else {
+                tank.takeDamage(EXPLOSION_DAMAGE, explosionCenterX, explosionCenterY);
+            }
         }
     }
 

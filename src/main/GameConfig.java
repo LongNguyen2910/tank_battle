@@ -7,6 +7,7 @@ public class GameConfig {
     public int computerCount = 0;
     public String mapPath = "/maps/map01.txt";
     public String gameMode = "Deathmatch";
+    public String matchMode = "PVP"; // "PVP" or "PVE"
     public boolean startImmediately = false;
     
     // Thêm lựa chọn xe tăng

@@ -104,11 +104,21 @@ public class Trap {
         if (!canTrigger() || tank == null) {
             return false;
         }
+        // Prevent teammates from triggering owner's trap in team modes
+        if (owner != null && owner.getTeamId() != 0 && owner.getTeamId() == tank.getTeamId()) {
+            return false;
+        }
         return tank != owner || ownerImmunityTicks <= 0;
     }
 
     public void trigger(Tank tank) {
         if (!canTrigger()) {
+            return;
+        }
+
+        // Additional safety: do not trigger effects on teammates in team modes
+        if (owner != null && tank != null && owner.getTeamId() != 0 && owner.getTeamId() == tank.getTeamId()) {
+            // ignore triggering by teammate
             return;
         }
 
