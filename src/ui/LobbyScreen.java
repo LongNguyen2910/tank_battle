@@ -25,7 +25,7 @@ public class LobbyScreen extends JFrame {
     private String[] mapNames = {"Classic Border", "Maze Runner", "Crossroads", "The Arena"};
     private int currentMapIndex = 0;
     
-    private String[] modes = {"Deathmatch", "Capture the Flag", "Survival"};
+    private String[] modes = {"PVP", "PVE"};
     private int currentModeIndex = 0;
 
     /** Giữ mapPath khớp với map đang chọn trong lobby (preview + khi vào game). */
@@ -143,8 +143,8 @@ public class LobbyScreen extends JFrame {
         leftPanel.add(createLabel("MODE:"), gbc);
         gbc.gridx = 1;
         JPanel modePanel = createSelectionPanel(
-            e -> { currentModeIndex = (currentModeIndex - 1 + modes.length) % modes.length; config.gameMode = modes[currentModeIndex]; updateUI(); },
-            e -> { currentModeIndex = (currentModeIndex + 1) % modes.length; config.gameMode = modes[currentModeIndex]; updateUI(); }
+            e -> { currentModeIndex = (currentModeIndex - 1 + modes.length) % modes.length; config.matchMode = modes[currentModeIndex]; applyMatchDefaults(); updateUI(); },
+            e -> { currentModeIndex = (currentModeIndex + 1) % modes.length; config.matchMode = modes[currentModeIndex]; applyMatchDefaults(); updateUI(); }
         );
         modeLabel = createValueLabel(modes[currentModeIndex]);
         modePanel.add(modeLabel, BorderLayout.CENTER);
@@ -279,6 +279,21 @@ public class LobbyScreen extends JFrame {
         computerCountLabel.setText(String.valueOf(config.computerCount));
         mapLabel.setText(mapNames[currentMapIndex]);
         modeLabel.setText(modes[currentModeIndex]);
+    }
+
+    // Apply sensible defaults when switching between PVP and PVE
+    private void applyMatchDefaults() {
+        if (config.matchMode == null) config.matchMode = "PVP";
+        if (config.matchMode.equalsIgnoreCase("PVP")) {
+            // PVP default: 2 players, 0 bots (but user can still adjust)
+            if (config.playerCount < 2) config.playerCount = 2;
+            if (config.computerCount < 0) config.computerCount = 0;
+        } else {
+            // PVE default: 1 player, 1 bot
+            if (config.playerCount < 1) config.playerCount = 1;
+            if (config.computerCount < 1) config.computerCount = 1;
+        }
+        updateUI();
     }
 
     // Copied from startingscreen for consistency

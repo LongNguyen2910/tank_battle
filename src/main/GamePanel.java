@@ -282,30 +282,71 @@ public class GamePanel extends JPanel implements Runnable{
         if (gameEnded) return;
         gameEnded = true;
 
-        int bestHealth = -1;
-        Tank bestTank = null;
-        boolean tie = false;
-
-        for (Tank t : tankList) {
-            int hp = t.getCurrentHealth();
-            if (hp > bestHealth) {
-                bestHealth = hp;
-                bestTank = t;
-                tie = false;
-            } else if (hp == bestHealth) {
-                tie = true;
-            }
-        }
-
         String text;
-        if (bestTank == null) text = "DRAW";
-        else if (tie) text = "DRAW";
-        else text = "PLAYER " + bestTank.getPlayerNum() + " WIN";
+        if (config.matchMode != null && config.matchMode.equalsIgnoreCase("PVE")) {
+            java.util.Map<Integer, Integer> teamHealth = new java.util.HashMap<>();
+            for (Tank t : tankList) {
+                int team = t.getTeamId();
+                int hp = t.getCurrentHealth();
+                teamHealth.put(team, teamHealth.getOrDefault(team, 0) + hp);
+            }
+
+            if (teamHealth.isEmpty()) text = "DRAW";
+            else if (teamHealth.size() == 1) {
+                int teamId = teamHealth.keySet().iterator().next();
+                text = "TEAM " + teamId + " WIN";
+            } else {
+                int bestTeam = -1; int bestHealth = -1; boolean tie = false;
+                for (java.util.Map.Entry<Integer, Integer> entry : teamHealth.entrySet()) {
+                    if (entry.getValue() > bestHealth) { bestHealth = entry.getValue(); bestTeam = entry.getKey(); tie = false; }
+                    else if (entry.getValue() == bestHealth) { tie = true; }
+                }
+                if (tie) text = "DRAW";
+                else text = "TEAM " + bestTeam + " WIN";
+            }
+        } else {
+            int bestHealth = -1;
+            Tank bestTank = null;
+            boolean tie = false;
+
+            for (Tank t : tankList) {
+                int hp = t.getCurrentHealth();
+                if (hp > bestHealth) {
+                    bestHealth = hp;
+                    bestTank = t;
+                    tie = false;
+                } else if (hp == bestHealth) {
+                    tie = true;
+                }
+            }
+
+            if (bestTank == null) text = "DRAW";
+            else if (tie) text = "DRAW";
+            else text = "PLAYER " + bestTank.getPlayerNum() + " WIN";
+        }
 
         SwingUtilities.invokeLater(() -> showWinnerOverlay(text));
     }
 
     private void checkForWinner() {
+        if (config.matchMode != null && config.matchMode.equalsIgnoreCase("PVE")) {
+            // Determine alive teams (ignore DEAD/DYING tanks)
+            java.util.Set<Integer> aliveTeams = new java.util.HashSet<>();
+            for (Tank t : tankList) {
+                if (t.getState() == Tank.TankState.DEAD || t.getState() == Tank.TankState.DYING) continue;
+                int team = t.getTeamId();
+                if (team == 0) team = t.isBot() ? 2 : 1; // fallback
+                aliveTeams.add(team);
+            }
+            if (aliveTeams.size() <= 1) {
+                gameEnded = true;
+                String text;
+                if (aliveTeams.isEmpty()) text = "DRAW";
+                else text = "TEAM " + aliveTeams.iterator().next() + " WIN";
+                SwingUtilities.invokeLater(() -> showWinnerOverlay(text));
+            }
+            return;
+        }
         // When only one tank remains, declare it as winner; if none remain, it's a draw.
         if (tankList.size() > 1) {
             return;
@@ -496,10 +537,12 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void playerInit() {
         if (config.playerCount >= 1) {
-            tankList.add(new Tank(this, keyH, config.p1Tank, 1, keySettingPlayer1));
+            Tank t1 = new Tank(this, keyH, config.p1Tank, 1, keySettingPlayer1);
+            tankList.add(t1);
         }
         if (config.playerCount >= 2) {
-            tankList.add(new Tank(this, keyH, config.p2Tank, 2, keySettingPlayer2));
+            Tank t2 = new Tank(this, keyH, config.p2Tank, 2, keySettingPlayer2);
+            tankList.add(t2);
         }
         
         TankType[] availableTanks = TankType.values();
@@ -512,6 +555,17 @@ public class GamePanel extends JPanel implements Runnable{
             TankType randomType = availableTanks[rand.nextInt(availableTanks.length)];
             Tank botTank = new Tank(this, keyH, randomType, pNum, new KeySetting(0,0,0,0,0,0,0,0), true, botDifficulty);
             tankList.add(botTank);
+        }
+
+        // Assign teams for PVE mode: humans = team 1, bots = team 2
+        if (config.matchMode != null && config.matchMode.equalsIgnoreCase("PVE")) {
+            for (Tank t : tankList) {
+                if (t.isBot()) t.setTeamId(2);
+                else t.setTeamId(1);
+            }
+        } else {
+            // clear team ids for non-team modes
+            for (Tank t : tankList) t.setTeamId(0);
         }
     }
 

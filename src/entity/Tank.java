@@ -75,6 +75,8 @@ public class Tank extends GameObject {
     private final boolean isBot;
     private final BotDifficulty botDifficulty;
     private final Random random = new Random();
+    // team id used for team-based modes (1 = players, 2 = bots)
+    private int teamId = 0;
 
     private int shotCooldown = 0;
     private int shotCooldownMax = 1;
@@ -207,6 +209,12 @@ public class Tank extends GameObject {
         botTargetIsItem = false;
         observedEnemyTiles.clear();
     }
+
+    public boolean isBot() { return isBot; }
+
+    public int getTeamId() { return teamId; }
+
+    public void setTeamId(int id) { this.teamId = id; }
 
     private static class ControlIntent {
         private Direction moveDirection = Direction.NONE;
@@ -476,9 +484,6 @@ public class Tank extends GameObject {
         }
 
         Direction moveDirection = nextDirectionFromPath(selfTile);
-        if (moveDirection == Direction.NONE) {
-            moveDirection = randomDirectionExcluding(Direction.NONE);
-        }
         botMoveDirection = moveDirection;
         intent.moveDirection = botMoveDirection;
 
@@ -613,9 +618,6 @@ public class Tank extends GameObject {
         }
 
         Direction moveDirection = nextDirectionFromPath(selfTile);
-        if (moveDirection == Direction.NONE) {
-            moveDirection = randomDirectionExcluding(Direction.NONE);
-        }
         botMoveDirection = moveDirection;
         intent.moveDirection = botMoveDirection;
     }

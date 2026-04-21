@@ -125,6 +125,7 @@ public class CollisionChecker {
     public void checkHit() {
         for (Tank tank : gp.getTankList()) {
             for (Bullet bullet : gp.getBulletList()) {
+                // ignore self-shot immediately
                 if (bullet.getOwner() == tank) {
                     continue;
                 }
@@ -137,6 +138,17 @@ public class CollisionChecker {
 
                     if (blockedByShield && !shieldReducedHit) {
                         bullet.startImpact();
+                        continue;
+                    }
+
+                    // Prevent friendly fire when teams are assigned (teamId != 0)
+                    Tank owner = bullet.getOwner();
+                    int ownerTeam = (owner == null) ? 0 : owner.getTeamId();
+                    int targetTeam = tank.getTeamId();
+                    if (ownerTeam != 0 && ownerTeam == targetTeam) {
+                        // Friendly fire: ignore damage but still show impact
+                        bullet.startImpact();
+                        bullet.setAlive(false);
                         continue;
                     }
 
