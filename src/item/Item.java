@@ -110,18 +110,12 @@ public class Item {
 
         if (itemType == ItemType.HEALTH) {
             int restored = tank.restoreHealth(HEALTH_RESTORE_AMOUNT);
-            if (restored <= 0) {
-                return false;
-            }
             state = ItemState.CONSUMED;
             return true;
         }
 
         if (itemType == ItemType.ENERGY) {
             int restored = tank.restoreFuel(ENERGY_RESTORE_AMOUNT);
-            if (restored <= 0) {
-                return false;
-            }
             state = ItemState.CONSUMED;
             return true;
         }
@@ -155,7 +149,9 @@ public class Item {
                 SkillType.PHASE_SHOT,
                 SkillType.SLOW,
                 SkillType.TRIPLE_SHOT,
-                SkillType.BIG_PHASE_SHOT
+                SkillType.BIG_PHASE_SHOT,
+                SkillType.BOMB,
+                SkillType.TRAP
         };
         return pool[random.nextInt(pool.length)];
     }

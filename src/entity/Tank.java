@@ -112,7 +112,7 @@ public class Tank extends GameObject {
     private boolean botTargetIsItem = false;
     private final Map<Tank, Point> observedEnemyTiles = new HashMap<>();
 
-    private static final int MEDIUM_BOT_REPATH_TICKS = 30;
+    private static final int MEDIUM_BOT_REPATH_TICKS = 60;
     private static final int MEDIUM_BOT_SHIELD_RADIUS_TILES = 5;
     private static final float MEDIUM_BOT_SHIELD_HP_RATIO = 0.5f;
     private static final int MEDIUM_BOT_DASH_ITEM_RADIUS_TILES = 6;
@@ -415,7 +415,6 @@ public class Tank extends GameObject {
             botMoveTicksRemaining--;
         }
 
-        // Panic dash wastes fuel aggressively and can slam into walls.
         if (botDashTicksRemaining <= 0
                 && currentFuel > 0
                 && (currentHealth <= EASY_BOT_LOW_HP_THRESHOLD || incomingDirection != Direction.NONE)
@@ -451,6 +450,7 @@ public class Tank extends GameObject {
                 ? findBestHealthItemTile(selfTile, nearestEnemyTile)
                 : ((!shouldRetreat && hasEmptySkillSlot()) ? findNearestItemTile(selfTile) : null);
         Point enemyTarget = shouldChase ? findStandoffTargetTile(selfTile, nearestEnemyTile, MEDIUM_BOT_CHASE_RADIUS_TILES) : null;
+
         if (shouldChase && enemyTarget == null) {
             enemyTarget = nearestEnemyTile;
         }
@@ -464,7 +464,7 @@ public class Tank extends GameObject {
             boolean targetChanged = botTargetTile == null || !botTargetTile.equals(desiredTarget);
             if (targetChanged || botRepathTicks <= 0 || botPathIndex >= botPathTiles.size()) {
                 botTargetTile = desiredTarget;
-                rebuildPath(selfTile, desiredTarget);
+                rebuildPathAStar(selfTile, desiredTarget);
                 botRepathTicks = MEDIUM_BOT_REPATH_TICKS;
             } else {
                 botRepathTicks--;
@@ -916,15 +916,60 @@ public class Tank extends GameObject {
             }
 
             if (isDirectionBlocked(nextDirection)) {
-                botPathTiles.clear();
-                botPathIndex = 0;
-                return Direction.NONE;
+                // Try to find an alternative unblocked direction that still moves towards nextTile
+                Direction alternativeDirection = findAlternativeUnblockedDirection(selfTile, nextTile);
+                if (alternativeDirection != Direction.NONE) {
+                    return alternativeDirection;
+                } else {
+                    // If no alternative, then the path is truly blocked, clear and force re-path
+                    botPathTiles.clear();
+                    botPathIndex = 0;
+                    return Direction.NONE;
+                }
             }
 
             return nextDirection;
         }
 
         return Direction.NONE;
+    }
+
+    private Direction findAlternativeUnblockedDirection(Point currentTile, Point targetTile) {
+        Direction[] cardinalDirections = {Direction.UP, Direction.RIGHT, Direction.DOWN, Direction.LEFT};
+        List<Direction> possibleAlternatives = new ArrayList<>();
+
+        for (Direction dir : cardinalDirections) {
+            if (!isDirectionBlocked(dir)) {
+                possibleAlternatives.add(dir);
+            }
+        }
+
+        if (possibleAlternatives.isEmpty()) {
+            return Direction.NONE; // No unblocked directions
+        }
+
+        // Prioritize directions that move closer to the targetTile
+        Direction bestAlternative = Direction.NONE;
+        int minDistanceToTarget = manhattanDistance(currentTile, targetTile); // Current distance to target
+
+        for (Direction dir : possibleAlternatives) {
+            Point simulatedNextTile = simulateStep(currentTile, dir); // Simulate moving one step in this direction
+            if (simulatedNextTile != null) {
+                int distanceAfterMove = manhattanDistance(simulatedNextTile, targetTile);
+                if (distanceAfterMove < minDistanceToTarget) {
+                    minDistanceToTarget = distanceAfterMove;
+                    bestAlternative = dir;
+                }
+            }
+        }
+
+        if (bestAlternative != Direction.NONE) {
+            return bestAlternative;
+        }
+
+        // If no direction directly reduces distance, pick any unblocked direction
+        // This might lead to temporary detours but avoids getting stuck
+        return possibleAlternatives.get(random.nextInt(possibleAlternatives.size()));
     }
 
     private Point findNearestItemTile(Point fromTile) {
